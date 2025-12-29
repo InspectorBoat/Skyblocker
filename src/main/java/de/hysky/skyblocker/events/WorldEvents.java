@@ -28,4 +28,23 @@ public class WorldEvents {
 		 */
 		void onBlockStateUpdate(BlockPos pos, BlockState oldState, BlockState newState);
 	}
+
+	/**
+	 * Called when the server indicates to the client that is has ticked
+	 *
+	 * @implNote This event is fired when a ClientBoundPingPacket is received.
+	 * This is hypixel-specific behavior!
+	 */
+	public static final Event<ServerTick> SERVER_TICK = EventFactory.createArrayBacked(ServerTick.class, callbacks -> () -> {
+		for (ServerTick callback : callbacks) {
+			callback.onServerTick();
+		}
+	});
+
+	@Environment(EnvType.CLIENT)
+	@FunctionalInterface
+	public interface ServerTick {
+		void onServerTick();
+	}
+
 }
