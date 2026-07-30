@@ -5,6 +5,7 @@ import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.debug.Debug;
 import de.hysky.skyblocker.injected.SkyblockerEntity;
+import de.hysky.skyblocker.skyblock.entity.glow.adder.DungeonGlowAdder;
 import de.hysky.skyblocker.skyblock.garden.GreenhousePaste;
 import de.hysky.skyblocker.skyblock.slayers.SlayerManager;
 import de.hysky.skyblocker.skyblock.slayers.boss.voidgloom.LazerTimer;
@@ -82,6 +83,7 @@ public abstract class EntityMixin implements SkyblockerEntity {
 
 		// literal voodoo magic
 		Entity entity = (Entity) (Object) this;
+		DungeonGlowAdder.remove(entity);
 		GreenhousePaste.onEntityChange(entity);
 	}
 }

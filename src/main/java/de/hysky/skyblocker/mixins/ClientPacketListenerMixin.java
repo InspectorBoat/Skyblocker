@@ -18,6 +18,7 @@ import de.hysky.skyblocker.skyblock.dungeon.secrets.DungeonManager;
 import de.hysky.skyblocker.skyblock.dwarven.CorpseFinder;
 import de.hysky.skyblocker.skyblock.dwarven.CrystalsLocationsManager;
 import de.hysky.skyblocker.skyblock.end.TheEnd;
+import de.hysky.skyblocker.skyblock.entity.glow.adder.DungeonGlowAdder;
 import de.hysky.skyblocker.skyblock.fishing.FishingHelper;
 import de.hysky.skyblocker.skyblock.fishing.FishingHookDisplayHelper;
 import de.hysky.skyblocker.skyblock.fishing.SeaCreatureTracker;
@@ -86,6 +87,7 @@ public abstract class ClientPacketListenerMixin extends ClientCommonPacketListen
 		FishingHelper.checkIfFishWasCaught(armorStandEntity);
 		TreeBreakProgressHud.onEntityUpdate(armorStandEntity);
 		LassoHud.onEntityUpdate(armorStandEntity);
+		DungeonGlowAdder.onEntityUpdate(packet, armorStandEntity);
 		try { //Prevent packet handling fails if something goes wrong so that entity trackers still update, just without compact damage numbers
 			CompactDamage.compactDamage(armorStandEntity);
 		} catch (Exception e) {
