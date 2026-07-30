@@ -37,11 +37,7 @@ public class EntityRendererMixin {
 		if (allowGlow && customGlow) {
 			// Only use custom colour flag if the entity has no vanilla glow (so we can change Hypixel's glow colours without changing the glow's visibility)
 			// NB: Custom glow needs to be separate to avoid weird rendering bugs.
-			if (!entity.isCurrentlyGlowing()) {
-				state.setData(MobGlow.ENTITY_CUSTOM_GLOW_COLOUR, ARGB.opaque(MobGlow.getMobGlow(entity)));
-			} else {
-				state.outlineColor = ARGB.opaque(MobGlow.getMobGlow(entity));
-			}
+			state.outlineColor = ARGB.opaque(MobGlow.getMobGlow(entity));
 		} else if (!allowGlow) {
 			state.outlineColor = EntityRenderState.NO_OUTLINE;
 		}
