@@ -44,14 +44,11 @@ public class MobGlow {
 
 	public static boolean hasOrComputeMobGlow(Entity entity) {
 		if (CACHE.containsKey(entity)) {
-			return true;
+			return CACHE.getInt(entity) != NO_GLOW;
 		}
 		int color = computeMobGlow(entity);
-		if (color != NO_GLOW) {
-			CACHE.put(entity, color);
-			return true;
-		}
-		return false;
+		CACHE.put(entity, color);
+		return color != NO_GLOW;
 	}
 
 	public static int getMobGlow(Entity entity) {

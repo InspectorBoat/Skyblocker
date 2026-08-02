@@ -3,6 +3,8 @@ package de.hysky.skyblocker.skyblock.entity.glow.adder;
 import java.util.List;
 import java.util.Optional;
 
+import de.hysky.skyblocker.skyblock.dungeon.secrets.DungeonMapUtils;
+import de.hysky.skyblocker.skyblock.dungeon.secrets.Room;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
@@ -15,7 +17,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ambient.Bat;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.decoration.ArmorStand;
-import net.minecraft.world.entity.monster.EnderMan;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.DyeColor;
 import de.hysky.skyblocker.annotations.Init;
@@ -44,10 +45,15 @@ public class DungeonGlowAdder extends MobGlowAdder {
 
 	@Override
 	public int computeColour(Entity entity) {
-		String name = entity.getName().getString();
+
+		Room currentRoom = DungeonManager.getCurrentRoom();
+		if (currentRoom != null) {
+			if (!currentRoom.getSegments().contains(DungeonMapUtils.getPhysicalRoomPos(entity.position()))) return NO_GLOW;
+		}
 
 		if (STARRED_MOBS.contains(entity.getId())) return STARRED_COLOUR;
 
+		String name = entity.getName().getString();
 		return switch (entity) {
 			// Minibosses
 			case Player _ when SkyblockerConfigManager.get().dungeons.starredMobGlow && !DungeonManager.getBoss().isFloor(4) && name.equals("Lost Adventurer") -> LOST_ADVENTURER_COLOUR;
@@ -57,10 +63,6 @@ public class DungeonGlowAdder extends MobGlowAdder {
 
 			// Bats
 			case Bat b when SkyblockerConfigManager.get().dungeons.starredMobGlow && !b.isInvisible() -> STARRED_COLOUR;
-
-			// Fel Heads
-//			case ArmorStand as when SkyblockerConfigManager.get().dungeons.starredMobGlow && as.isMarker() && as.hasItemInSlot(EquipmentSlot.HEAD) && ItemUtils.getHeadTexture(as.getItemBySlot(EquipmentSlot.HEAD)).equals(HeadTextures.FEL) -> ENDERMAN_EYE_COLOUR;
-//			case EnderMan _ -> ENDERMAN_EYE_COLOUR;
 
 			// Wither & Blood Keys
 			case ArmorStand as when SkyblockerConfigManager.get().dungeons.highlightDoorKeys && as.hasItemInSlot(EquipmentSlot.HEAD) -> switch (ItemUtils.getHeadTexture(as.getItemBySlot(EquipmentSlot.HEAD))) {
@@ -73,7 +75,6 @@ public class DungeonGlowAdder extends MobGlowAdder {
 			case ArmorStand _ -> 0;
 
 			//Class-based glow
-			//This goes after regular mobs to ensure starred player entities like dreadlords have the glow applied
 			case Player p when SkyblockerConfigManager.get().dungeons.classBasedPlayerGlow && DungeonScore.isDungeonStarted() -> DungeonPlayerManager.getClassFromPlayer(p).glowColor();
 
 			default -> NO_GLOW;
@@ -103,7 +104,7 @@ public class DungeonGlowAdder extends MobGlowAdder {
 		if (!INSTANCE.isEnabled()) return;
 		for (SynchedEntityData.DataValue<?> entry : packet.packedItems()) {
 			if (entry.serializer().equals(EntityDataSerializers.OPTIONAL_COMPONENT)) {
-				((Optional<Component>) entry.value()).filter(DungeonGlowAdder::componentContainsStar).ifPresent(name -> {
+				((Optional<Component>) entry.value()).filter(DungeonGlowAdder::componentContainsStar).ifPresent(_ -> {
 					var entities = armorStand.level().getEntities(armorStand, AABB.ofSize(armorStand.position(), 0.2, 2, 0.2), e -> e instanceof LivingEntity && !(e instanceof ArmorStand) && !(e instanceof WitherBoss));
 					if (!entities.isEmpty()) {
 						STARRED_MOBS.add(entities.getFirst().getId());

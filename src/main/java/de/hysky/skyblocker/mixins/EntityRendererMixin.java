@@ -24,6 +24,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(EntityRenderer.class)
 public class EntityRendererMixin {
@@ -41,6 +42,11 @@ public class EntityRendererMixin {
 		} else if (!allowGlow) {
 			state.outlineColor = EntityRenderState.NO_OUTLINE;
 		}
+	}
+
+	@Inject(method = "affectedByCulling", at = @At("HEAD"), cancellable = true)
+	void canBeCulled(Entity entity, CallbackInfoReturnable<Boolean> cir) {
+		if (MobGlow.hasOrComputeMobGlow(entity)) cir.setReturnValue(false);
 	}
 
 	// This is meant to be separate from the previous injection for organizational purposes.
