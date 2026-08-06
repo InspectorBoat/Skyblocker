@@ -11,6 +11,8 @@ import de.hysky.skyblocker.utils.ColorUtils;
 import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.Location;
 import de.hysky.skyblocker.utils.PosUtils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.command.argumenttypes.blockpos.ClientBlockPosArgumentType;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
@@ -18,7 +20,6 @@ import de.hysky.skyblocker.utils.scheduler.MessageScheduler;
 import de.hysky.skyblocker.utils.waypoint.Waypoint;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -49,7 +50,7 @@ import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.argument;
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
 
 public class CorpseFinder {
-	private static boolean isLocationCorrect = false;
+	private static boolean inGlaciteMineshafts = false;
 	private static final Pattern CORPSE_FOUND_PATTERN = Pattern.compile("([A-Z]+) CORPSE LOOT!");
 	private static final Pattern COORDS_PATTERN = Pattern.compile("x: (?<x>-?\\d+), y: (?<y>\\d+), z: (?<z>-?\\d+)");
 	private static final String PREFIX = "[Skyblocker Corpse Finder] ";
@@ -59,15 +60,15 @@ public class CorpseFinder {
 	@Init
 	public static void init() {
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> {
-			isLocationCorrect = false;
+			inGlaciteMineshafts = false;
 			corpsesByType.clear();
 		});
 		SkyblockEvents.LOCATION_CHANGE.register(CorpseFinder::handleLocationChange);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(CorpseFinder::onChatMessage);
+		ChatMessageListener.EVENT.register(CorpseFinder::onChatMessage);
 		LevelRenderExtractionCallback.EVENT.register(CorpseFinder::extractRendering);
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			if (!SkyblockerConfigManager.get().mining.glacite.enableCorpseFinder || client.player == null) return;
-			if (!isLocationCorrect) return;
+			if (!inGlaciteMineshafts) return;
 			for (List<Corpse> corpses : corpsesByType.values()) {
 				for (Corpse corpse : corpses) {
 					if (!corpse.seen && client.player.hasLineOfSight(corpse.entity)) {
@@ -95,7 +96,7 @@ public class CorpseFinder {
 	private static boolean seenDebugWarning = false;
 
 	private static void handleLocationChange(Location location) {
-		isLocationCorrect = location == Location.GLACITE_MINESHAFTS;
+		inGlaciteMineshafts = location == Location.GLACITE_MINESHAFTS;
 	}
 
 	public static void checkIfCorpse(Entity entity) {
@@ -103,7 +104,7 @@ public class CorpseFinder {
 	}
 
 	public static void checkIfCorpse(ArmorStand armorStand) {
-		if (!isLocationCorrect || !SkyblockerConfigManager.get().mining.glacite.enableCorpseFinder) return;
+		if (!inGlaciteMineshafts || !SkyblockerConfigManager.get().mining.glacite.enableCorpseFinder) return;
 		if (armorStand.hasCustomName() || armorStand.isInvisible() || armorStand.showBasePlate()) return;
 		handleArmorStand(armorStand);
 	}
@@ -132,7 +133,7 @@ public class CorpseFinder {
 	}
 
 	private static void extractRendering(PrimitiveCollector collector) {
-		if (!SkyblockerConfigManager.get().mining.glacite.enableCorpseFinder || !isLocationCorrect) return;
+		if (!SkyblockerConfigManager.get().mining.glacite.enableCorpseFinder || !inGlaciteMineshafts) return;
 		for (List<Corpse> corpses : corpsesByType.values()) {
 			for (Corpse corpse : corpses) {
 				if (corpse.waypoint.shouldRender() && (corpse.seen || (Debug.debugEnabled() && SkyblockerConfigManager.get().debug.corpseFinderDebug))) {
@@ -142,14 +143,14 @@ public class CorpseFinder {
 		}
 	}
 
-	private static boolean onChatMessage(Component text, boolean overlay) {
-		if (overlay || !isLocationCorrect || !SkyblockerConfigManager.get().mining.glacite.enableCorpseFinder || Minecraft.getInstance().player == null) return true;
-		String string = text.getString();
-		if (string.contains(Minecraft.getInstance().getUser().getName())) return true; // Ignore your own messages
-		if (SkyblockerConfigManager.get().mining.glacite.enableParsingChatCorpseFinder) parseCords(text);  // parsing cords from chat
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!inGlaciteMineshafts || !SkyblockerConfigManager.get().mining.glacite.enableCorpseFinder || Minecraft.getInstance().player == null) return ChatFilterResult.PASS;
+		if (messageText.contains(Minecraft.getInstance().getUser().getName())) return ChatFilterResult.PASS; // Ignore your own messages
+		if (SkyblockerConfigManager.get().mining.glacite.enableParsingChatCorpseFinder) parseCoords(message, messageText);  // parsing cords from chat
 
-		Matcher matcherCorpse = CORPSE_FOUND_PATTERN.matcher(string);
-		if (!matcherCorpse.find()) return true;
+		Matcher matcherCorpse = CORPSE_FOUND_PATTERN.matcher(messageText);
+		if (!matcherCorpse.find()) return ChatFilterResult.PASS;
 
 		LOGGER.debug(PREFIX + "Triggered code for onChatMessage");
 		LOGGER.debug(PREFIX + "State of corpsesByType: {}", corpsesByType);
@@ -159,7 +160,7 @@ public class CorpseFinder {
 		List<Corpse> corpses = corpsesByType.get(corpseType);
 		if (corpses == null) {
 			LOGGER.warn(PREFIX + "Couldn't get corpses! corpse type string: {}, parsed corpse type: {}", corpseTypeString, corpseType);
-			return true;
+			return ChatFilterResult.PASS;
 		}
 		corpses.stream() // Since squared distance comparison will yield the same result as normal distance comparison, we can use squared distance to avoid square root calculation
 				.min(Comparator.comparingDouble(corpse -> corpse.entity.distanceToSqr(Minecraft.getInstance().player)))
@@ -171,7 +172,7 @@ public class CorpseFinder {
 						() -> LOGGER.warn(PREFIX + "Couldn't find the closest corpse despite triggering onChatMessage!")
 				);
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	@SuppressWarnings("DataFlowIssue")
@@ -210,9 +211,8 @@ public class CorpseFinder {
 		return String.format("x: %d, y: %d, z: %d", pos.getX() + 1, pos.getY(), pos.getZ() + 1);
 	}
 
-	private static void parseCords(Component text) {
-		String message = text.getString();
-		Matcher matcher = COORDS_PATTERN.matcher(message);
+	private static void parseCoords(Component message, String messageAsString) {
+		Matcher matcher = COORDS_PATTERN.matcher(messageAsString);
 		if (!matcher.find()) return;
 
 		int x, y, z;

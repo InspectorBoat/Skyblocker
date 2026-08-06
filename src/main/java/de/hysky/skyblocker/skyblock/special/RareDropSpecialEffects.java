@@ -5,8 +5,8 @@ import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.skyblock.itemlist.ItemRepository;
 import de.hysky.skyblocker.utils.FlexibleItemStack;
 import de.hysky.skyblocker.utils.SkyBlockIcons;
-import de.hysky.skyblocker.utils.Utils;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
@@ -22,15 +22,13 @@ public class RareDropSpecialEffects {
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(RareDropSpecialEffects::displayRareDropEffect);
+		ChatMessageListener.EVENT.register(RareDropSpecialEffects::onChatMessage);
 	}
 
-	private static boolean displayRareDropEffect(Component message, boolean overlay) {
-		if (Utils.isOnSkyblock() && SkyblockerConfigManager.get().general.specialEffects.rareDropEffects && !overlay) {
-
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (SkyblockerConfigManager.get().general.specialEffects.rareDropEffects) {
 			try {
-				String stringForm = message.getString();
-				Matcher magicFindMatcher = MAGIC_FIND_PATTERN.matcher(stringForm);
+				Matcher magicFindMatcher = MAGIC_FIND_PATTERN.matcher(messageText);
 
 				if (magicFindMatcher.matches()) {
 					triggerDropEffect(magicFindMatcher.group("item"));
@@ -40,7 +38,7 @@ public class RareDropSpecialEffects {
 			}
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static void triggerDropEffect(String itemName) {

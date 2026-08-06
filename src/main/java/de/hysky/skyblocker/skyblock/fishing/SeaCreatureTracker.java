@@ -3,13 +3,14 @@ package de.hysky.skyblocker.skyblock.fishing;
 import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.skyblock.item.SkyblockItemRarity;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.time.SkyblockTime;
 import de.hysky.skyblocker.utils.render.title.Title;
 import de.hysky.skyblocker.utils.render.title.TitleContainer;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
 import it.unimi.dsi.fastutil.objects.ObjectFloatPair;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -34,7 +35,7 @@ public class SeaCreatureTracker {
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(SeaCreatureTracker::onChatMessage);
+		ChatMessageListener.EVENT.register(SeaCreatureTracker::onChatMessage);
 		ClientEntityEvents.ENTITY_UNLOAD.register(SeaCreatureTracker::onEntityDespawn);
 	}
 
@@ -105,25 +106,24 @@ public class SeaCreatureTracker {
 	 * Looks for a message that is sent when a sea creature is fished up
 	 */
 	@SuppressWarnings("SameReturnValue")
-	private static boolean onChatMessage(Component text, boolean overlay) {
-		if (!SkyblockerConfigManager.get().helpers.fishing.enableFishingHud || overlay) return true;
-		String message = ChatFormatting.stripFormatting(text.getString());
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!SkyblockerConfigManager.get().helpers.fishing.enableFishingHud) return ChatFilterResult.PASS;
 		//see if it's a double hook
-		if (DOUBLE_HOOK_PATTERN.matcher(message).find()) {
+		if (DOUBLE_HOOK_PATTERN.matcher(messageText).find()) {
 			doubleHook = true;
-			return true;
+			return ChatFilterResult.PASS;
 		}
 
 		//see if message matches any creature
 		for (SeaCreature creature : SeaCreature.values()) {
-			if (creature.chatMessage.equals(message)) {
+			if (creature.chatMessage.equals(messageText)) {
 				//found a sea creature add it to current creatures
 				lastCatch = creature;
 				break;
 			}
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	/**

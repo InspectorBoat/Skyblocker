@@ -3,6 +3,8 @@ package de.hysky.skyblocker.skyblock.special;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 
@@ -13,7 +15,6 @@ import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.skyblock.itemlist.ItemRepository;
 import de.hysky.skyblocker.utils.FlexibleItemStack;
 import de.hysky.skyblocker.utils.Utils;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 
@@ -23,17 +24,17 @@ public class TrophySpecialEffects {
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(TrophySpecialEffects::displayRareDropEffect);
+		ChatMessageListener.EVENT.register(TrophySpecialEffects::onChatMessage);
 	}
 
-	private static boolean displayRareDropEffect(Component message, boolean overlay) {
-		if (!Utils.isOnSkyblock() || overlay || !SkyblockerConfigManager.get().general.specialEffects.trophyDropEffects) {
-			return true;
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!Utils.isOnSkyblock() || !SkyblockerConfigManager.get().general.specialEffects.trophyDropEffects) {
+			return ChatFilterResult.PASS;
 		}
 
 		try {
-			String stringForm = message.getString();
-			Matcher matcher = DIAMOND_PATTERN.matcher(stringForm);
+			Matcher matcher = DIAMOND_PATTERN.matcher(messageText);
 
 			if (matcher.matches()) {
 				FlexibleItemStack stack = getStackFromName(matcher.group("item"));
@@ -46,7 +47,7 @@ public class TrophySpecialEffects {
 			LOGGER.error("[Skyblocker Special Effects] An unexpected exception was encountered!", e);
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static @Nullable FlexibleItemStack getStackFromName(String itemName) {

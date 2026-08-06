@@ -6,8 +6,9 @@ import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.events.DungeonEvents;
 import de.hysky.skyblocker.skyblock.dungeon.DungeonClass;
 import de.hysky.skyblocker.skyblock.tabhud.util.PlayerListManager;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -45,7 +46,7 @@ public class DungeonPlayerManager {
 	public static void init() {
 		DungeonEvents.DUNGEON_LOADED.register(() -> dungeonLoaded = true);
 		Scheduler.INSTANCE.scheduleCyclic(DungeonPlayerManager::updatePlayers, 1);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(DungeonPlayerManager::onPlayerGhost);
+		ChatMessageListener.EVENT.register(DungeonPlayerManager::onChatMessage);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> reset());
 	}
 
@@ -99,11 +100,11 @@ public class DungeonPlayerManager {
 	}
 
 	@SuppressWarnings("SameReturnValue")
-	private static boolean onPlayerGhost(Component text, boolean overlay) {
-		if (!dungeonLoaded) return true;
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!dungeonLoaded) return ChatFilterResult.PASS;
 
-		Matcher matcher = PLAYER_GHOST_PATTERN.matcher(text.getString());
-		if (!matcher.find()) return true;
+		Matcher matcher = PLAYER_GHOST_PATTERN.matcher(messageText);
+		if (!matcher.find()) return ChatFilterResult.PASS;
 
 		String name = matcher.group("name");
 		if (name.equals("You")) {
@@ -112,7 +113,7 @@ public class DungeonPlayerManager {
 		}
 		getPlayer(name).ifPresentOrElse(DungeonPlayer::ghost, () -> DungeonManager.LOGGER.error("[Skyblocker Dungeon Player Manager] Received ghost message for player '{}' but player was not found in the player list: {}", matcher.group("name"), Arrays.toString(players)));
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static void reset() {

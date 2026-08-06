@@ -4,7 +4,9 @@ import de.hysky.skyblocker.SkyblockerMod;
 import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.events.ServerTickCallback;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import de.hysky.skyblocker.skyblock.dungeon.secrets.DungeonManager;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -25,13 +27,13 @@ public class FireFreezeStaffTimer {
 	@Init
 	public static void init() {
 		HudElementRegistry.attachElementAfter(VanillaHudElements.OVERLAY_MESSAGE, FIRE_FREEZE_STAFF_TIMER, FireFreezeStaffTimer::extractRenderState);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(FireFreezeStaffTimer::onChatMessage);
+		ChatMessageListener.EVENT.register(FireFreezeStaffTimer::onChatMessage);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> FireFreezeStaffTimer.reset());
 		ServerTickCallback.EVENT.register(FireFreezeStaffTimer::onServerTick);
 	}
 
 	private static void onServerTick() {
-		if (timerActive) fireFreezeTimer -= 50;
+		if (timerActive) fireFreezeTimer -= 1;
 	}
 
 	private static void extractRenderState(GuiGraphicsExtractor graphics, DeltaTracker tickCounter) {
@@ -40,14 +42,14 @@ public class FireFreezeStaffTimer {
 		if (client.gui.screen() != null) return;
 
 		if (SkyblockerConfigManager.get().dungeons.theProfessor.fireFreezeStaffTimer && fireFreezeTimer != 0) {
-			if (fireFreezeTimer <= -5000) {
+			if (fireFreezeTimer <= -100) {
 				reset();
 				return;
 			}
 
 			Component message;
 			if (fireFreezeTimer > 0) {
-				message = Component.literal("in ").append(Component.literal(String.format("%.2f", (float) (fireFreezeTimer) / 1000) + "s").withStyle(ChatFormatting.YELLOW));
+				message = Component.literal("in ").append(Component.literal(String.format("%.2f", (float) (fireFreezeTimer) / 20) + "s").withStyle(ChatFormatting.YELLOW));
 			} else {
 				message = Component.literal("NOW").withStyle(ChatFormatting.RED);
 			}
@@ -65,13 +67,12 @@ public class FireFreezeStaffTimer {
 		timerActive = false;
 	}
 
-	private static boolean onChatMessage(Component text, boolean overlay) {
-		if (!overlay && SkyblockerConfigManager.get().dungeons.theProfessor.fireFreezeStaffTimer && ChatFormatting.stripFormatting(text.getString())
-				.equals("[BOSS] The Professor: Oh? You found my Guardians' one weakness?")) {
-			fireFreezeTimer = 5700L;
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (DungeonManager.getBoss() == DungeonBoss.PROFESSOR && SkyblockerConfigManager.get().dungeons.theProfessor.fireFreezeStaffTimer && messageText.equals("[BOSS] The Professor: Oh? You found my Guardians' one weakness?")) {
+			fireFreezeTimer = 114L;
 			timerActive = true;
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 }

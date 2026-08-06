@@ -11,6 +11,8 @@ import de.hysky.skyblocker.events.SkyblockEvents;
 import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.Location;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.command.argumenttypes.blockpos.ClientBlockPosArgumentType;
 import de.hysky.skyblocker.utils.command.argumenttypes.blockpos.ClientPosArgument;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
@@ -24,7 +26,6 @@ import de.hysky.skyblocker.utils.ws.message.CrystalsWaypointMessage;
 import de.hysky.skyblocker.utils.ws.message.CrystalsWaypointSubscribeMessage;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -85,7 +86,7 @@ public class CrystalsLocationsManager {
 		// Crystal Hollows Waypoints
 		Scheduler.INSTANCE.scheduleCyclic(CrystalsLocationsManager::update, 40);
 		LevelRenderExtractionCallback.EVENT.register(CrystalsLocationsManager::extractRendering);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(CrystalsLocationsManager::extractLocationFromMessage);
+		ChatMessageListener.EVENT.register(CrystalsLocationsManager::extractLocationFromMessage);
 		ClientCommandRegistrationCallback.EVENT.register(CrystalsLocationsManager::registerWaypointLocationCommands);
 		SkyblockEvents.LOCATION_CHANGE.register(CrystalsLocationsManager::onLocationChange);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> reset());
@@ -94,15 +95,15 @@ public class CrystalsLocationsManager {
 		LevelRenderExtractionCallback.EVENT.register(NucleusWaypoints::extractRendering);
 	}
 
-	private static boolean extractLocationFromMessage(Component message, Boolean overlay) {
-		if (!SkyblockerConfigManager.get().mining.crystalsWaypoints.findInChat || !Utils.isInCrystalHollows() || overlay) {
-			return true;
+	private static ChatFilterResult extractLocationFromMessage(Component message, String messageText) {
+		if (!SkyblockerConfigManager.get().mining.crystalsWaypoints.findInChat || !Utils.isInCrystalHollows()) {
+			return ChatFilterResult.PASS;
 		}
-		String text = ChatFormatting.stripFormatting(message.getString());
+
 		try {
 			//make sure that it is only reading user messages and not from skyblocker
-			if (text.contains(":") && !text.startsWith(Constants.PREFIX.get().getString())) {
-				String userMessage = text.split(":", 2)[1];
+			if (messageText.contains(":") && !messageText.startsWith(Constants.PREFIX.get().getString())) {
+				String userMessage = messageText.split(":", 2)[1];
 
 				//get the message text
 				Matcher matcher = TEXT_CWORDS_PATTERN.matcher(userMessage);
@@ -112,7 +113,7 @@ public class CrystalsLocationsManager {
 					String location = blockPos.getX() + " " + blockPos.getY() + " " + blockPos.getZ();
 					//if position is not in the hollows do not add it
 					if (!checkInCrystals(blockPos)) {
-						return true;
+						return ChatFilterResult.PASS;
 					}
 
 					//see if there is a name of a location to add to this
@@ -123,13 +124,13 @@ public class CrystalsLocationsManager {
 							if (!activeWaypoints.containsKey(waypointLocation)) {
 								addCustomWaypoint(waypointLocation, blockPos);
 							}
-							return true;
+							return ChatFilterResult.PASS;
 						}
 					}
 
 					//if the location is not found ask the user for the location (could have been in a previous chat message)
 					if (CLIENT.player == null || CLIENT.getConnection() == null) {
-						return true;
+						return ChatFilterResult.PASS;
 					}
 
 					CLIENT.player.sendSystemMessage(getLocationMenu(location, false));
@@ -145,7 +146,7 @@ public class CrystalsLocationsManager {
 			for (MiningLocationLabel.CrystalHollowsLocationsCategory waypointLocation : WAYPOINT_LOCATIONS.values()) {
 				String waypointLinkedMessage = waypointLocation.getLinkedMessage();
 				String waypointName = waypointLocation.getName();
-				if (waypointLinkedMessage != null && text.startsWith(waypointLinkedMessage) && !verifiedWaypoints.contains(waypointName)) {
+				if (waypointLinkedMessage != null && messageText.startsWith(waypointLinkedMessage) && !verifiedWaypoints.contains(waypointName)) {
 					addCustomWaypoint(waypointLocation.getName(), CLIENT.player.blockPosition());
 					verifiedWaypoints.add(waypointName);
 					trySendWaypoint2Socket(waypointLocation);
@@ -153,7 +154,7 @@ public class CrystalsLocationsManager {
 			}
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	protected static boolean checkInCrystals(BlockPos pos) {

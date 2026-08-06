@@ -12,8 +12,9 @@ import de.hysky.skyblocker.skyblock.tabhud.widget.element.PlainTextElement;
 import de.hysky.skyblocker.utils.Location;
 import de.hysky.skyblocker.utils.Utils;
 import de.hysky.skyblocker.utils.CodecUtils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.data.ProfiledData;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import com.mojang.serialization.Codec;
@@ -200,7 +201,7 @@ public class DungeonSplitsWidget extends TableWidget {
 		BEST_SPLITS.init();
 
 		DungeonEvents.DUNGEON_LOADED.register(this::onDungeonLoaded);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(this::onChatMessage);
+		ChatMessageListener.EVENT.register(this::onChatMessage);
 		SkyblockEvents.LOCATION_CHANGE.register(this::onLocationChange);
 	}
 
@@ -233,11 +234,10 @@ public class DungeonSplitsWidget extends TableWidget {
 	}
 
 	@SuppressWarnings("SameReturnValue")
-	private boolean onChatMessage(Component text, boolean overlay) {
-		if (!Utils.isInDungeons() || overlay) return true;
-		String stripped = ChatFormatting.stripFormatting(text.getString());
+	private ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!Utils.isInDungeons()) return ChatFilterResult.PASS;
 
-		if (!running && DUNGEON_START.matcher(stripped).matches()) {
+		if (!running && DUNGEON_START.matcher(messageText).matches()) {
 			startTime = System.currentTimeMillis();
 			elapsedTime = 0L;
 			running = true;
@@ -245,14 +245,14 @@ public class DungeonSplitsWidget extends TableWidget {
 			for (Split split : splits) {
 				split.reset();
 			}
-			return true;
+			return ChatFilterResult.PASS;
 		}
 
-		if (!running) return true;
+		if (!running) return ChatFilterResult.PASS;
 
 		for (int i = 0; i < splits.size(); i++) {
 			Split split = splits.get(i);
-			if (!split.completed && split.trigger.matcher(stripped).matches()) {
+			if (!split.completed && split.trigger.matcher(messageText).matches()) {
 				long time = System.currentTimeMillis() - startTime;
 				split.complete(time);
 
@@ -263,11 +263,11 @@ public class DungeonSplitsWidget extends TableWidget {
 				if (i == splits.size() - 1) {
 					stopTimer(true);
 				}
-				return true;
+				return ChatFilterResult.PASS;
 			}
 		}
 
-		if (stripped.contains("EXTRA STATS")) {
+		if (messageText.contains("EXTRA STATS")) {
 			boolean allCompleted = true;
 			for (Split split : splits) {
 				if (!split.completed) {
@@ -279,7 +279,7 @@ public class DungeonSplitsWidget extends TableWidget {
 				stopTimer(false);
 			}
 		}
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private void updateFloor() {

@@ -13,6 +13,8 @@ import de.hysky.skyblocker.utils.ColorUtils;
 import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.PosUtils;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
 import de.hysky.skyblocker.utils.waypoint.ProfileAwareWaypoint;
@@ -20,7 +22,6 @@ import de.hysky.skyblocker.utils.waypoint.Waypoint;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.core.BlockPos;
@@ -59,7 +60,7 @@ public class Relics {
 		ClientLifecycleEvents.CLIENT_STOPPING.register(Relics::saveFoundRelics);
 		ClientCommandRegistrationCallback.EVENT.register(Relics::registerCommands);
 		LevelRenderExtractionCallback.EVENT.register(Relics::extractRendering);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(Relics::onChatMessage);
+		ChatMessageListener.EVENT.register(Relics::onChatMessage);
 	}
 
 	private static void loadRelics(Minecraft client) {
@@ -147,13 +148,12 @@ public class Relics {
 		}
 	}
 
-	private static boolean onChatMessage(Component text, boolean overlay) {
-		String message = text.getString();
-		if (message.equals("You've already found this relic!") || message.startsWith("+10,000 Coins! (") && message.endsWith("/28 Relics)")) {
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (Utils.isInSpidersDen() && messageText.equals("You've already found this relic!") || messageText.startsWith("+10,000 Coins! (") && messageText.endsWith("/28 Relics)")) {
 			markClosestRelicFound();
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static void markClosestRelicFound() {

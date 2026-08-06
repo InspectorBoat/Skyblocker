@@ -5,8 +5,8 @@ import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.skyblock.itemlist.ItemRepository;
 import de.hysky.skyblocker.utils.FlexibleItemStack;
-import de.hysky.skyblocker.utils.Utils;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
@@ -28,14 +28,13 @@ public class DyeSpecialEffects {
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(DyeSpecialEffects::displayDyeDropEffect);
+		ChatMessageListener.EVENT.register(DyeSpecialEffects::onChatMessage);
 	}
 
-	private static boolean displayDyeDropEffect(Component message, boolean overlay) {
-		if (Utils.isOnSkyblock() && SkyblockerConfigManager.get().general.specialEffects.rareDyeDropEffects && !overlay) {
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (SkyblockerConfigManager.get().general.specialEffects.rareDyeDropEffects) {
 			try {
-				String stringForm = message.getString();
-				Matcher matcher = DROP_PATTERN.matcher(stringForm);
+				Matcher matcher = DROP_PATTERN.matcher(messageText);
 
 				if (matcher.matches() && matcher.group("player").equals(CLIENT.getUser().getName())) {
 					ItemStack stack = findDyeStack(matcher.group("dye"));
@@ -49,7 +48,7 @@ public class DyeSpecialEffects {
 			}
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static ItemStack findDyeStack(String dyeName) {

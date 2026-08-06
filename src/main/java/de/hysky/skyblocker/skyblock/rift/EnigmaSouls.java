@@ -13,11 +13,11 @@ import de.hysky.skyblocker.utils.ColorUtils;
 import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.PosUtils;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
 import de.hysky.skyblocker.utils.waypoint.ProfileAwareWaypoint;
 import de.hysky.skyblocker.utils.waypoint.Waypoint;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.commands.CommandBuildContext;
@@ -125,15 +125,13 @@ public class EnigmaSouls {
 		}
 	}
 
-	static boolean onMessage(Component text, boolean overlay) {
-		if (Utils.isInTheRift() && !overlay) {
-			String message = text.getString();
-
-			if (message.equals("You have already found that Enigma Soul!") || ChatFormatting.stripFormatting(message).equals("SOUL! You unlocked an Enigma Soul!"))
+	static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (Utils.isInTheRift()) {
+			if (messageText.equals("You have already found that Enigma Soul!") || messageText.equals("SOUL! You unlocked an Enigma Soul!"))
 				markClosestSoul(true);
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext registryAccess) {

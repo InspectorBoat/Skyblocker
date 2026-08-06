@@ -7,6 +7,8 @@ import de.hysky.skyblocker.mixins.accessors.EnderManAccessor;
 import de.hysky.skyblocker.skyblock.slayers.SlayerManager;
 import de.hysky.skyblocker.skyblock.slayers.SlayerType;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
@@ -14,7 +16,6 @@ import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -57,7 +58,7 @@ public class BeaconHighlighter {
 		WorldEvents.BLOCK_STATE_UPDATE.register(BeaconHighlighter::onBlockStateUpdate);
 		LevelRenderExtractionCallback.EVENT.register(BeaconHighlighter::extractRendering);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> reset());
-		ClientReceiveMessageEvents.ALLOW_GAME.register(BeaconHighlighter::onMessage);
+		ChatMessageListener.EVENT.register(BeaconHighlighter::onChatMessage);
 	}
 
 	private static void reset() {
@@ -120,14 +121,12 @@ public class BeaconHighlighter {
 		}
 	}
 
-	private static boolean onMessage(Component text, boolean overlay) {
-		if (Utils.isInTheEnd() && !overlay) {
-			String message = text.getString();
-
-			if (message.contains("SLAYER QUEST COMPLETE!") || message.contains("NICE! SLAYER BOSS SLAIN!")) reset();
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (Utils.isInTheEnd()) {
+			if (messageText.contains("SLAYER QUEST COMPLETE!") || messageText.contains("NICE! SLAYER BOSS SLAIN!")) reset();
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	/**

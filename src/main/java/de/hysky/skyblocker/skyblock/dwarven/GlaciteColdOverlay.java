@@ -3,12 +3,13 @@ package de.hysky.skyblocker.skyblock.dwarven;
 import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.Hud;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -25,21 +26,24 @@ public class GlaciteColdOverlay {
 	@Init
 	public static void init() {
 		Scheduler.INSTANCE.scheduleCyclic(GlaciteColdOverlay::update, 20);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(GlaciteColdOverlay::coldReset);
+		ChatMessageListener.EVENT.register(GlaciteColdOverlay::onChatMessage);
 		HudElementRegistry.attachElementAfter(VanillaHudElements.MISC_OVERLAYS, POWDER_SNOW_OUTLINE, (context, _) -> extract(context));
 	}
 
-	private static boolean coldReset(Component text, boolean b) {
-		if (!Utils.isInDwarvenMines() || b) {
-			return true;
+	/**
+	 * Reset cold when detecting
+	 */
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!Utils.isInDwarvenMines()) {
+			return ChatFilterResult.PASS;
 		}
-		String message = text.getString();
-		if (message.equals("The warmth of the campfire reduced your ❄ Cold to 0!")) {
+		if (messageText.equals("The warmth of the campfire reduced your ❄ Cold to 0!")) {
 			cold = 0;
 			resetTime = System.currentTimeMillis();
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static void update() {
@@ -59,7 +63,7 @@ public class GlaciteColdOverlay {
 	}
 
 	/**
-	 * @see Gui#renderTextureOverlay as this is a carbon copy of it
+	 * @see Hud#extractTextureOverlay as this is a carbon copy of it
 	 */
 	private static void extractOverlay(GuiGraphicsExtractor graphics, Identifier texture, float opacity) {
 		int white = ARGB.white(opacity);

@@ -5,10 +5,11 @@ import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.utils.Area;
 import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
 import de.hysky.skyblocker.utils.waypoint.NamedWaypoint;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -18,6 +19,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.jspecify.annotations.Nullable;
+
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
@@ -82,7 +85,7 @@ public class MetalDetector {
 			new Vec3i(-37, -21, -22) // -37, -21, -22
 	);
 
-	protected static Vec3i minesCenter = null;
+	protected static @Nullable Vec3i minesCenter = null;
 	private static double previousDistance;
 	private static Vec3 previousPlayerPos;
 	protected static boolean newTreasure = true;
@@ -91,26 +94,24 @@ public class MetalDetector {
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(MetalDetector::getDistanceMessage);
+		ChatMessageListener.EVENT.register(MetalDetector::onChatMessage);
 		LevelRenderExtractionCallback.EVENT.register(MetalDetector::extractRendering);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> reset());
 	}
 
 	/**
 	 * Processes the message with the distance to the treasure, updates the helper, and works out possible locations using that message.
-	 *
-	 * @param text    the message sent to the player
-	 * @param overlay if the message is an overlay message
 	 */
-	private static boolean getDistanceMessage(Component text, boolean overlay) {
-		if (!overlay || !SkyblockerConfigManager.get().mining.crystalHollows.metalDetectorHelper || !Utils.isInCrystalHollows() || Utils.getArea() != Area.CrystalHollows.MINES_OF_DIVAN || CLIENT.player == null) {
-			checkChestFound(text);
-			return true;
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!SkyblockerConfigManager.get().mining.crystalHollows.metalDetectorHelper || !Utils.isInCrystalHollows() || Utils.getArea() != Area.CrystalHollows.MINES_OF_DIVAN) {
+			checkChestFound(messageText);
+			return ChatFilterResult.PASS;
 		}
 		//in the mines of divan
-		Matcher treasureDistanceMature = TREASURE_PATTERN.matcher(text.getString());
+		Matcher treasureDistanceMature = TREASURE_PATTERN.matcher(messageText);
 		if (!treasureDistanceMature.find()) {
-			return true;
+			return ChatFilterResult.PASS;
 		}
 		//find new values
 		double distance = Double.parseDouble(treasureDistanceMature.group(2));
@@ -146,19 +147,17 @@ public class MetalDetector {
 		previousDistance = distance;
 		previousPlayerPos = playerPos;
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	/**
 	 * Processes the found treasure message and resets the helper
-	 *
-	 * @param text the message sent to the player
 	 */
-	private static void checkChestFound(Component text) {
+	private static void checkChestFound(String message) {
 		if (!Utils.isInCrystalHollows() || Utils.getArea() != Area.CrystalHollows.MINES_OF_DIVAN || CLIENT.player == null) {
 			return;
 		}
-		if (text.getString().startsWith("You found")) {
+		if (message.startsWith("You found")) {
 			newTreasure = true;
 			possibleBlocks = new ArrayList<>();
 		}
@@ -236,8 +235,6 @@ public class MetalDetector {
 
 	/**
 	 * Renders waypoints for the location of treasure or possible treasure.
-	 *
-	 * @param context world render context
 	 */
 	private static void extractRendering(PrimitiveCollector collector) {
 		//only render enabled and if there is a few location options and in the mines of divan

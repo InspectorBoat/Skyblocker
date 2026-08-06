@@ -15,6 +15,8 @@ import de.hysky.skyblocker.utils.ItemUtils;
 import de.hysky.skyblocker.utils.Location;
 import de.hysky.skyblocker.utils.SkyBlockIcons;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.data.ProfiledData;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
@@ -23,7 +25,6 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectMaps;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectLists;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.ClickEvent;
@@ -77,7 +78,7 @@ public final class CorpseProfitTracker extends AbstractProfitTracker {
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(INSTANCE::onChatMessage);
+		ChatMessageListener.EVENT.register(INSTANCE::onChatMessage);
 
 		INSTANCE.allRewards.init();
 
@@ -126,15 +127,14 @@ public final class CorpseProfitTracker extends AbstractProfitTracker {
 	}
 
 	@SuppressWarnings("SameReturnValue")
-	private boolean onChatMessage(Component text, boolean overlay) {
-		if (Utils.getLocation() != Location.GLACITE_MINESHAFTS || !INSTANCE.isEnabled() || overlay) return true;
-		String message = text.getString();
+	private ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (Utils.getLocation() != Location.GLACITE_MINESHAFTS || !INSTANCE.isEnabled()) return ChatFilterResult.PASS;
 
 		// Reward messages end with a separator like so
-		if (insideRewardMessage && message.equals("▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")) {
+		if (insideRewardMessage && messageText.equals("▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")) {
 			if (lastCorpseLoot == null) {
 				LOGGER.error("Received a reward message end without a corresponding start. Report this!");
-				return true;
+				return ChatFilterResult.PASS;
 			}
 			currentProfileRewards.add(lastCorpseLoot);
 			if (!lastCorpseLoot.isPriceDataComplete()) {
@@ -166,9 +166,9 @@ public final class CorpseProfitTracker extends AbstractProfitTracker {
 			}
 			lastCorpseLoot = null;
 			insideRewardMessage = false;
-			return true;
+			return ChatFilterResult.PASS;
 		}
-		Matcher matcher = CORPSE_PATTERN.matcher(message);
+		Matcher matcher = CORPSE_PATTERN.matcher(messageText);
 		if (!insideRewardMessage && matcher.matches()) {
 			String corpse = matcher.group(1);
 			CorpseType type;
@@ -181,7 +181,7 @@ public final class CorpseProfitTracker extends AbstractProfitTracker {
 				);
 			} catch (IllegalArgumentException _) {
 				LOGGER.error("Unknown corpse type `{}` for message: `{}`. Report this!", corpse, message);
-				return true;
+				return ChatFilterResult.PASS;
 			}
 
 			try {
@@ -191,16 +191,16 @@ public final class CorpseProfitTracker extends AbstractProfitTracker {
 				lastCorpseLoot.markPriceDataIncomplete();
 			}
 			insideRewardMessage = true;
-			return true;
+			return ChatFilterResult.PASS;
 		}
 
-		if (!insideRewardMessage || lastCorpseLoot == null || !matcher.usePattern(REWARD_PATTERN).matches()) return true;
+		if (!insideRewardMessage || lastCorpseLoot == null || !matcher.usePattern(REWARD_PATTERN).matches()) return ChatFilterResult.PASS;
 
 		String itemName = matcher.group(1);
 		int amount = NumberUtils.toInt(matcher.group(2).replace(",", ""), 1);
-		if (matcher.usePattern(HOTM_XP_PATTERN).matches()) return true; // Ignore HOTM XP messages.
+		if (matcher.usePattern(HOTM_XP_PATTERN).matches()) return ChatFilterResult.PASS; // Ignore HOTM XP messages.
 		lastCorpseLoot.addLoot(itemName, amount);
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private void recalculateAll() {

@@ -11,6 +11,8 @@ import de.hysky.skyblocker.utils.ColorUtils;
 import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.ItemUtils;
 import de.hysky.skyblocker.utils.Location;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.time.SkyblockTime;
 import de.hysky.skyblocker.utils.command.argumenttypes.EggTypeArgumentType;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
@@ -23,7 +25,6 @@ import de.hysky.skyblocker.utils.ws.WsStateManager;
 import de.hysky.skyblocker.utils.ws.message.EggWaypointMessage;
 import it.unimi.dsi.fastutil.objects.ObjectImmutableList;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -68,7 +69,7 @@ public class EggFinder {
 	public static void init() {
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> clearEggs());
 		SkyblockEvents.LOCATION_CHANGE.register(EggFinder::handleLocationChange);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(EggFinder::onChatMessage);
+		ChatMessageListener.EVENT.register(EggFinder::onChatMessage);
 		LevelRenderExtractionCallback.EVENT.register(EggFinder::extractRendering);
 
 		SkyblockTime.HOUR_CHANGE.register(hour -> {
@@ -162,10 +163,13 @@ public class EggFinder {
 		}
 	}
 
+	/**
+	 * Listen for egg tracker and egg found messages
+	 */
 	@SuppressWarnings("SameReturnValue")
-	private static boolean onChatMessage(Component text, boolean overlay) {
-		if (overlay || !isSpring || !SkyblockerConfigManager.get().helpers.chocolateFactory.enableEggFinder) return true;
-		Matcher matcher = NO_EGGS_PATTERN.matcher(text.getString());
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!isSpring || !SkyblockerConfigManager.get().helpers.chocolateFactory.enableEggFinder) return ChatFilterResult.PASS;
+		Matcher matcher = NO_EGGS_PATTERN.matcher(messageText);
 		if (matcher.matches()) {
 			for (EggType type : EggType.entries) {
 				Egg egg = type.egg;
@@ -173,38 +177,38 @@ public class EggFinder {
 				type.collected = true;
 				egg.setFound();
 			}
-			return true;
+			return ChatFilterResult.PASS;
 		}
 
 		matcher.usePattern(EGG_FOUND_PATTERN);
-		if (!matcher.find()) return true;
+		if (!matcher.find()) return ChatFilterResult.PASS;
 
 		try {
 			EggType eggType = EggType.getTypeByName(matcher.group(1));
-			if (eggType == null) return true;
+			if (eggType == null) return ChatFilterResult.PASS;
 
 			eggType.collected = true;
 			if (eggType.egg != null) {
 				eggType.egg.setFound();
-				return true;
+				return ChatFilterResult.PASS;
 			}
 
 			LOGGER.info("[Skyblocker Egg Finder] Discovered a new egg!");
 			Minecraft client = Minecraft.getInstance();
-			if (client.player == null || client.level == null) return true;
+			if (client.player == null || client.level == null) return ChatFilterResult.PASS;
 			List<ArmorStand> entities = client.level.getEntitiesOfClass(ArmorStand.class,
 					AABB.ofSize(client.player.position(), 4f, 4f, 4f),
 					entity -> EggFinder.checkIfEgg(entity, eggType)
 			);
 
-			if (entities.size() != 1) return true;
+			if (entities.size() != 1) return ChatFilterResult.PASS;
 			eggType.egg = new Egg(entities.getFirst().blockPosition().above(2), eggType);
 			eggType.egg.setFound();
 			eggType.sendEggMessage();
 			//noinspection DataFlowIssue
 			if (eggType.egg.equals(eggType.prevEgg)) {
 				LOGGER.info("[Skyblocker Egg Finder] Not sharing this egg to the WebSocket - matches previous location");
-				return true;
+				return ChatFilterResult.PASS;
 			}
 			WsMessageHandler.sendLocationMessage(Service.EGG_WAYPOINTS,
 					new EggWaypointMessage(eggType, eggType.egg.pos, Optional.empty()));
@@ -212,7 +216,7 @@ public class EggFinder {
 			LOGGER.error("[Skyblocker Egg Finder] Failed to process an egg!", e);
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	@SuppressWarnings("DataFlowIssue") //Removes that pesky "unboxing of Integer might cause NPE" warning when we already know it's not null

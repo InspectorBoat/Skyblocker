@@ -8,13 +8,14 @@ import de.hysky.skyblocker.events.ParticleEvents;
 import de.hysky.skyblocker.utils.ColorUtils;
 import de.hysky.skyblocker.utils.Location;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.command.argumenttypes.blockpos.ClientBlockPosArgumentType;
 import de.hysky.skyblocker.utils.command.argumenttypes.blockpos.ClientPosArgument;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
 import de.hysky.skyblocker.utils.waypoint.Waypoint;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
@@ -67,7 +68,7 @@ public class MythologicalRitual {
 		AttackBlockCallback.EVENT.register(MythologicalRitual::onAttackBlock);
 		UseBlockCallback.EVENT.register(MythologicalRitual::onUseBlock);
 		UseItemCallback.EVENT.register(MythologicalRitual::onUseItem);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(MythologicalRitual::onChatMessage);
+		ChatMessageListener.EVENT.register(MythologicalRitual::onChatMessage);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> reset());
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, _) -> dispatcher.register(literal(SkyblockerMod.NAMESPACE).then(literal("diana")
 				.then(literal("clearGriffinBurrows").executes(_ -> {
@@ -260,15 +261,15 @@ public class MythologicalRitual {
 	}
 
 	@SuppressWarnings("SameReturnValue")
-	public static boolean onChatMessage(Component message, boolean overlay) {
+	public static ChatFilterResult onChatMessage(Component message, String messageText) {
 		if (isActive() && GRIFFIN_BURROW_DUG.matcher(message.getString()).matches()) {
 			previousBurrow.confirmed = TriState.FALSE;
-			if (lastDugBurrowPos == null) return true;
+			if (lastDugBurrowPos == null) return ChatFilterResult.PASS;
 			previousBurrow = griffinBurrows.get(lastDugBurrowPos);
 			previousBurrow.confirmed = TriState.DEFAULT;
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static boolean isActive() {

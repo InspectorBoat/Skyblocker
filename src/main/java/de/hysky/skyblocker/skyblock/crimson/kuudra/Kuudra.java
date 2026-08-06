@@ -7,6 +7,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import de.hysky.skyblocker.utils.RegexListUtils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import org.apache.commons.lang3.math.NumberUtils;
 
 import de.hysky.skyblocker.SkyblockerMod;
@@ -18,7 +20,6 @@ import de.hysky.skyblocker.utils.Utils;
 import de.hysky.skyblocker.utils.data.ProfiledData;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.ChatFormatting;
@@ -59,7 +60,7 @@ public class Kuudra {
 			}
 		});
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> reset());
-		ClientReceiveMessageEvents.ALLOW_GAME.register(Kuudra::onMessage);
+		ChatMessageListener.EVENT.register(Kuudra::onChatMessage);
 	}
 
 	/**
@@ -130,28 +131,16 @@ public class Kuudra {
 		}
 	}
 
-	private static boolean onMessage(Component text, boolean overlay) {
-		if (Utils.isInKuudra() && !overlay) {
-			String message = ChatFormatting.stripFormatting(text.getString());
-
-			if (message.equals("[NPC] Elle: ARGH! All of the supplies fell into the lava! You need to retrieve them quickly!")) {
-				phase = KuudraPhase.RETRIEVE_SUPPLIES;
-			}
-
-			if (message.equals("[NPC] Elle: Phew! The Ballista is finally ready! It should be strong enough to tank Kuudra's blows now!")) {
-				phase = KuudraPhase.DPS;
-			}
-
-			if (message.equals("[NPC] Elle: POW! SURELY THAT'S IT! I don't think he has any more in him!")) {
-				phase = KuudraPhase.OTHER;
-			}
-
-			if (message.equals("[NPC] Elle: What just happened!? Is this Kuudra's real lair?")) {
-				phase = KuudraPhase.KUUDRA_LAIR;
-			}
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!Utils.isInKuudra()) return ChatFilterResult.PASS;
+		switch (messageText) {
+			case "[NPC] Elle: ARGH! All of the supplies fell into the lava! You need to retrieve them quickly!" -> phase = KuudraPhase.RETRIEVE_SUPPLIES;
+			case "[NPC] Elle: Phew! The Ballista is finally ready! It should be strong enough to tank Kuudra's blows now!" -> phase = KuudraPhase.DPS;
+			case "[NPC] Elle: POW! SURELY THAT'S IT! I don't think he has any more in him!" -> phase = KuudraPhase.OTHER;
+			case "[NPC] Elle: What just happened!? Is this Kuudra's real lair?" -> phase = KuudraPhase.KUUDRA_LAIR;
 		}
-
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static void reset() {

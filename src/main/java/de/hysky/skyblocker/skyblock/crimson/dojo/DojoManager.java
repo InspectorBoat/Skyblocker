@@ -5,15 +5,15 @@ import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.events.ParticleEvents;
 import de.hysky.skyblocker.events.WorldEvents;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
 import it.unimi.dsi.fastutil.booleans.BooleanPredicate;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -71,7 +71,7 @@ public class DojoManager {
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(DojoManager::onMessage);
+		ChatMessageListener.EVENT.register(DojoManager::onChatMessage);
 		LevelRenderExtractionCallback.EVENT.register(DojoManager::extractRendering);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> reset());
 		ClientEntityEvents.ENTITY_LOAD.register(DojoManager::onEntitySpawn);
@@ -94,34 +94,32 @@ public class DojoManager {
 	}
 
 	/**
-	 * works out if the player is in dojo and if so what challenge based on chat messages
-	 *
-	 * @param text    message
-	 * @param overlay is overlay
+	 * Detect when the player is in dojo and if so, what challenge
 	 */
-	private static boolean onMessage(Component text, Boolean overlay) {
-		if (!Utils.isInCrimson() || overlay) {
-			return true;
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!Utils.isInCrimson()) {
+			return ChatFilterResult.PASS;
 		}
-		if (Objects.equals(ChatFormatting.stripFormatting(text.getString()), START_MESSAGE)) {
+		if (Objects.equals(messageText, START_MESSAGE)) {
 			inArena = true;
 			//update the players ping
 			getPing();
-			return true;
+			return ChatFilterResult.PASS;
 		}
 		if (!inArena) {
-			return true;
+			return ChatFilterResult.PASS;
 		}
-		if (text.getString().matches(CHALLENGE_FINISHED_REGEX)) {
+		if (messageText.matches(CHALLENGE_FINISHED_REGEX)) {
 			reset();
-			return true;
+			return ChatFilterResult.PASS;
 		}
 
 		//look for a message saying what challenge is starting if one has not already been found
 		if (currentChallenge != DojoChallenges.NONE) {
-			return true;
+			return ChatFilterResult.PASS;
 		}
-		Matcher nextChallenge = TEST_OF_PATTERN.matcher(text.getString());
+		Matcher nextChallenge = TEST_OF_PATTERN.matcher(messageText);
 		if (nextChallenge.matches()) {
 			currentChallenge = DojoChallenges.from(nextChallenge.group(1));
 			if (!currentChallenge.enabled.test(true)) {
@@ -129,7 +127,7 @@ public class DojoManager {
 			}
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static void getPing() {

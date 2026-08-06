@@ -15,6 +15,8 @@ import de.hysky.skyblocker.utils.ItemUtils;
 import de.hysky.skyblocker.utils.Location;
 import de.hysky.skyblocker.utils.SkyBlockIcons;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.data.ProfiledData;
 import it.unimi.dsi.fastutil.objects.Object2IntAVLTreeMap;
 import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
@@ -27,7 +29,6 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectMaps;
 import it.unimi.dsi.fastutil.objects.ObjectSet;
 import it.unimi.dsi.fastutil.objects.ObjectSortedSet;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.core.component.DataComponents;
@@ -83,7 +84,7 @@ public final class PowderMiningTracker extends AbstractProfitTracker {
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(INSTANCE::onChatMessage);
+		ChatMessageListener.EVENT.register(INSTANCE::onChatMessage);
 		ItemPriceUpdateEvent.ON_PRICE_UPDATE.register(INSTANCE::onPriceUpdate);
 
 		INSTANCE.allRewards.init();
@@ -137,34 +138,33 @@ public final class PowderMiningTracker extends AbstractProfitTracker {
 	}
 
 	@SuppressWarnings("SameReturnValue")
-	private boolean onChatMessage(Component text, boolean overlay) {
-		if (Utils.getLocation() != Location.CRYSTAL_HOLLOWS || !INSTANCE.isEnabled() || overlay) return true;
-		String message = text.getString();
+	private ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (Utils.getLocation() != Location.CRYSTAL_HOLLOWS || !INSTANCE.isEnabled()) return ChatFilterResult.PASS;
 		// Reward messages end with a separator like so
-		if (insideChestMessage && message.equals("▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")) {
+		if (insideChestMessage && messageText.equals("▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")) {
 			insideChestMessage = false;
-			return true;
+			return ChatFilterResult.PASS;
 		}
 
-		if (!insideChestMessage && (message.equals("  CHEST LOCKPICKED ") || (SkyblockerConfigManager.get().mining.crystalHollows.countNaturalChestsInTracker && message.equals("  LOOT CHEST COLLECTED ")))) {
+		if (!insideChestMessage && (messageText.equals("  CHEST LOCKPICKED ") || (SkyblockerConfigManager.get().mining.crystalHollows.countNaturalChestsInTracker && messageText.equals("  LOOT CHEST COLLECTED ")))) {
 			insideChestMessage = true;
-			return true;
+			return ChatFilterResult.PASS;
 		}
 
-		if (!insideChestMessage) return true;
-		Matcher matcher = REWARD_PATTERN.matcher(message);
-		if (!matcher.matches()) return true;
+		if (!insideChestMessage) return ChatFilterResult.PASS;
+		Matcher matcher = REWARD_PATTERN.matcher(messageText);
+		if (!matcher.matches()) return ChatFilterResult.PASS;
 		String itemName = matcher.group(1);
 		int amount = NumberUtils.toInt(matcher.group(2).replace(",", ""), 1);
 
 		String itemId = getItemId(itemName);
 		if (itemId.isEmpty()) {
 			LOGGER.error("No matching item id for name `{}`. Report this!", itemName);
-			return true;
+			return ChatFilterResult.PASS;
 		}
 		incrementReward(itemName, itemId, amount);
 		calculateProfitForItem(itemId, amount);
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private void incrementReward(String itemName, String itemId, int amount) {

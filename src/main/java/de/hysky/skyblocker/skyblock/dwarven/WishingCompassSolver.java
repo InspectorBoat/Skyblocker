@@ -6,7 +6,8 @@ import de.hysky.skyblocker.events.ParticleEvents;
 import de.hysky.skyblocker.skyblock.tabhud.util.PlayerListManager;
 import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.Utils;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
@@ -76,25 +77,24 @@ public class WishingCompassSolver {
 	public static void init() {
 		UseItemCallback.EVENT.register(WishingCompassSolver::onItemInteract);
 		UseBlockCallback.EVENT.register(WishingCompassSolver::onBlockInteract);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(WishingCompassSolver::failMessageListener);
+		ChatMessageListener.EVENT.register(WishingCompassSolver::onChatMessage);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> reset());
 		ParticleEvents.FROM_SERVER.register(WishingCompassSolver::onParticle);
 	}
 
 	/**
-	 * When a filed message is sent in chat, reset the wishing compass solver to start
-	 * @param text message
-	 * @param b overlay
+	 * When a failed message is sent in chat, reset the wishing compass solver
 	 */
-	private static boolean failMessageListener(Component text, boolean b) {
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
 		if (!Utils.isInCrystalHollows()) {
-			return true;
+			return ChatFilterResult.PASS;
 		}
-		if (ChatFormatting.stripFormatting(text.getString()).equals("The Wishing Compass can't seem to locate anything!")) {
+		if (messageText.equals("The Wishing Compass can't seem to locate anything!")) {
 			currentState = SolverStates.NOT_STARTED;
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static void reset() {

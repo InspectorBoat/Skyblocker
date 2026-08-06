@@ -10,13 +10,14 @@ import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.skyblock.dungeon.secrets.DungeonManager;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
 import de.hysky.skyblocker.utils.waypoint.NamedWaypoint;
 import de.hysky.skyblocker.utils.waypoint.Waypoint;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -72,7 +73,7 @@ public class GoldorWaypointsManager {
 	public static void init() {
 		LevelRenderExtractionCallback.EVENT.register(GoldorWaypointsManager::extractRendering);
 		ClientLifecycleEvents.CLIENT_STARTED.register(GoldorWaypointsManager::load);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(GoldorWaypointsManager::onChatMessage);
+		ChatMessageListener.EVENT.register(GoldorWaypointsManager::onChatMessage);
 		ClientPlayConnectionEvents.JOIN.register(((_, _, _) -> reset()));
 	}
 
@@ -161,12 +162,11 @@ public class GoldorWaypointsManager {
 	}
 
 	@SuppressWarnings("SameReturnValue")
-	private static boolean onChatMessage(Component text, boolean overlay) {
-		if (overlay || !shouldProcess()) return true;
-		String message = text.getString();
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!shouldProcess()) return ChatFilterResult.PASS;
 
 		if (active) {
-			if (PHASE_COMPLETE.matcher(message).matches()) {
+			if (PHASE_COMPLETE.matcher(messageText).matches()) {
 				currentPhase++;
 				gateDestroyed = false;
 				setPhaseWaypoints();
@@ -174,28 +174,28 @@ public class GoldorWaypointsManager {
 			} else {
 				String playerName;
 
-				if ((playerName = getPlayerName(TERMINAL_ACTIVATED.matcher(message))) != null) {
+				if ((playerName = getPlayerName(TERMINAL_ACTIVATED.matcher(messageText))) != null) {
 					removeNearestWaypoint(TERMINALS, playerName);
-				} else if ((playerName = getPlayerName(DEVICE_ACTIVATED.matcher(message))) != null) {
+				} else if ((playerName = getPlayerName(DEVICE_ACTIVATED.matcher(messageText))) != null) {
 					removeNearestWaypoint(DEVICES, playerName);
-				} else if ((playerName = getPlayerName(LEVER_ACTIVATED.matcher(message))) != null) {
+				} else if ((playerName = getPlayerName(LEVER_ACTIVATED.matcher(messageText))) != null) {
 					removeNearestWaypoint(LEVERS, playerName);
-				} else if (message.equals(CORE_ENTRANCE)) {
+				} else if (messageText.equals(CORE_ENTRANCE)) {
 					active = false;
 					ACTIVE_PHASE_WAYPOINTS.clear();
-				} else if (message.equals(GATE_DESTROYED)) {
+				} else if (messageText.equals(GATE_DESTROYED)) {
 					gateDestroyed = true;
 					TerminalHud.INSTANCE.update();
 				}
 			}
-		} else if (message.equals(TERMINALS_START)) {
+		} else if (messageText.equals(TERMINALS_START)) {
 			reset();
 			setPhaseWaypoints();
 			active = true;
 			TerminalHud.INSTANCE.update();
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static void setPhaseWaypoints() {

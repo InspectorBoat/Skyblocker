@@ -13,13 +13,14 @@ import de.hysky.skyblocker.skyblock.slayers.boss.vampire.TwinClawsIndicator;
 import de.hysky.skyblocker.skyblock.slayers.features.CallMaddox;
 import de.hysky.skyblocker.skyblock.slayers.features.SlayerTimer;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.data.ProfiledData;
 import de.hysky.skyblocker.utils.mayor.MayorUtils;
 import de.hysky.skyblocker.utils.render.title.Title;
 import de.hysky.skyblocker.utils.render.title.TitleContainer;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.minecraft.ChatFormatting;
@@ -83,7 +84,7 @@ public class SlayerManager {
 	@Init
 	public static void init() {
 		SLAYERS_DATA.load();
-		ClientReceiveMessageEvents.ALLOW_GAME.register(SlayerManager::onChatMessage);
+		ChatMessageListener.EVENT.register(SlayerManager::onChatMessage);
 		SkyblockEvents.MAYOR_CHANGE.register(SlayerManager::onMayorChange);
 		SkyblockEvents.PROFILE_CHANGE.register((_, _) -> slayerQuest = null);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> bossFight = null);
@@ -105,29 +106,26 @@ public class SlayerManager {
 	}
 
 	@SuppressWarnings("SameReturnValue")
-	private static boolean onChatMessage(Component text, boolean overlay) {
-		if (overlay || !Utils.isOnSkyblock()) return true;
-		String message = text.getString();
-
-		switch (message.stripLeading()) {
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		switch (messageText.stripLeading()) {
 			case "Your Slayer Quest has been cancelled!", "SLAYER QUEST FAILED!" -> {
 				slayerQuest = null;
 				CallMaddox.onSlayerFailed();
-				return true;
+				return ChatFilterResult.PASS;
 			}
 			case "SLAYER QUEST STARTED!" -> {
-				return true;
+				return ChatFilterResult.PASS;
 			}
 			case "NICE! SLAYER BOSS SLAIN!", "SLAYER QUEST COMPLETE!" -> {
 				if (slayerQuest != null) {
 					SlayerTimer.sendMessage();
 					CallMaddox.onBossKilled();
 				}
-				return true;
+				return ChatFilterResult.PASS;
 			}
 			case "YOU COCOONED YOUR SLAYER BOSS" -> {
 				if (slayerQuest != null) SlayerTimer.sendMessage();
-				return true;
+				return ChatFilterResult.PASS;
 			}
 			case String s when s.startsWith("SLAYER MINI-BOSS") -> {
 				if (SkyblockerConfigManager.get().slayers.miniBossSpawnAlert && !SkyblockerConfigManager.get().slayers.alertOtherMinibosses) {
@@ -138,10 +136,10 @@ public class SlayerManager {
 		}
 
 		if (slayerQuest != null) {
-			Matcher matcherNextLvl = XP_NEEDED_PATTERN.matcher(message);
+			Matcher matcherNextLvl = XP_NEEDED_PATTERN.matcher(messageText);
 			if (matcherNextLvl.matches()) {
-				if (message.contains("LVL MAXED OUT")) {
-					int level = message.contains("Vampire") ? 5 : 9;
+				if (messageText.contains("LVL MAXED OUT")) {
+					int level = messageText.contains("Vampire") ? 5 : 9;
 					slayerQuest.update(level, -1, true);
 				} else {
 					String xpRemainingStr = matcherNextLvl.group(3);
@@ -151,13 +149,13 @@ public class SlayerManager {
 						slayerQuest.update(level, xpRemaining, true);
 					}
 				}
-			} else if (LVL_UP_PATTERN.matcher(message).matches()) {
-				int level = Integer.parseInt(message.replaceAll("(\\d+).+", "$1"));
+			} else if (LVL_UP_PATTERN.matcher(messageText).matches()) {
+				int level = Integer.parseInt(messageText.replaceAll("(\\d+).+", "$1"));
 				slayerQuest.update(level, -1, true);
 			}
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	/**

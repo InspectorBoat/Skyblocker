@@ -15,10 +15,10 @@ public abstract class ChatPatternListener implements ChatMessageListener {
 	}
 
 	@Override
-	public final ChatFilterResult onMessage(Component message, String asString) {
+	public final ChatFilterResult onChatMessage(Component message, String messageText) {
 		ChatFilterResult state = state();
 		if (state == ChatFilterResult.PASS) return ChatFilterResult.PASS;
-		Matcher m = pattern.matcher(asString);
+		Matcher m = pattern.matcher(messageText);
 		if (m.matches() && onMatch(message, m)) {
 			return state;
 		}

@@ -9,13 +9,13 @@ import de.hysky.skyblocker.utils.FlexibleItemStack;
 import de.hysky.skyblocker.utils.ItemUtils;
 import de.hysky.skyblocker.utils.RegexUtils;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.data.ProfiledData;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import net.azureaaron.networth.utils.PetConstants;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -74,7 +74,7 @@ public class PetCache {
 				}
 			}
 		});
-		ClientReceiveMessageEvents.ALLOW_GAME.register(PetCache::onMessage);
+		ChatMessageListener.EVENT.register(PetCache::onChatMessage);
 	}
 
 	public static void handlePetEquip(Slot slot, int slotId) {
@@ -112,70 +112,68 @@ public class PetCache {
 	/**
 	 * Parses the Auto Pet messages to try and detect the active pet
 	 */
-	@SuppressWarnings("UnstableApiUsage")
-	private static boolean onMessage(Component text, boolean overlay) {
-		if (!Utils.isOnSkyblock() || overlay) return true;
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!Utils.isOnSkyblock()) return ChatFilterResult.PASS;
 
-		String stringified = ChatFormatting.stripFormatting(text.getString());
-		Matcher matcher = AUTOPET_PATTERN.matcher(stringified);
+		Matcher matcher = AUTOPET_PATTERN.matcher(messageText);
 
-		if (matcher.matches()) {
-			int level = RegexUtils.parseIntFromMatcher(matcher, "level");
-			String name = matcher.group("name");
+		if (!matcher.matches()) return ChatFilterResult.PASS;
 
-			FormattedCharSequence ordered = text.getVisualOrderText();
-			int nameIndex = stringified.indexOf(name);
-			MutableInt codePointIndex = new MutableInt(0);
-			MutableInt color = new MutableInt(-1);
+		int level = RegexUtils.parseIntFromMatcher(matcher, "level");
+		String name = matcher.group("name");
 
-			//The index has nothing to do with the codepoint's position so we must track it ourselves
-			//The visitor automatically folds section symbols into regular Style instances so we don't need to care about those either :)
-			ordered.accept((_, style, _) -> {
-				if (codePointIndex.intValue() == nameIndex) {
-					color.setValue(style.getColor().getValue());
+		FormattedCharSequence ordered = message.getVisualOrderText();
+		int nameIndex = messageText.indexOf(name);
+		MutableInt codePointIndex = new MutableInt(0);
+		MutableInt color = new MutableInt(-1);
 
-					return false;
-				}
+		//The index has nothing to do with the codepoint's position so we must track it ourselves
+		//The visitor automatically folds section symbols into regular Style instances so we don't need to care about those either :)
+		ordered.accept((_, style, _) -> {
+			if (codePointIndex.intValue() == nameIndex) {
+				color.setValue(style.getColor().getValue());
 
-				codePointIndex.getAndIncrement();
-				return true;
-			});
+				return false;
+			}
 
-			SkyblockItemRarity rarity = SkyblockItemRarity.fromColor(color.intValue());
+			codePointIndex.getAndIncrement();
+			return true;
+		});
 
-			if (rarity != SkyblockItemRarity.UNKNOWN) {
-				//This is technically an internal class but I don't feel like copying it out right now and I got no plans to change/remove it :shrug:
-				int petOffset = PetConstants.RARITY_OFFSETS.getOrDefault(rarity.name(), 0);
-				//The list is copied due to a FastUtil bug with sub list iterators
-				IntList petLevels = new IntArrayList(PetConstants.PET_LEVELS.subList(petOffset, petOffset + level - 1));
-				double exp = petLevels.intStream().sum();
+		SkyblockItemRarity rarity = SkyblockItemRarity.fromColor(color.intValue());
 
-				//Find pet in NEU repo
-				ItemStack stack = ItemRepository.getItemsStream()
-						.filter(s -> s.getStackOrThrow().getHoverName().getString().contains("] " + name))
-						.findFirst()
-						.map(FlexibleItemStack::getStackOrThrow)
-						.orElse(ItemStack.EMPTY);
+		if (rarity != SkyblockItemRarity.UNKNOWN) {
+			//This is technically an internal class but I don't feel like copying it out right now and I got no plans to change/remove it :shrug:
+			int petOffset = PetConstants.RARITY_OFFSETS.getOrDefault(rarity.name(), 0);
+			//The list is copied due to a FastUtil bug with sub list iterators
+			IntList petLevels = new IntArrayList(PetConstants.PET_LEVELS.subList(petOffset, petOffset + level - 1));
+			double exp = petLevels.intStream().sum();
 
-				if (!stack.isEmpty()) {
-					//We need to change the item id of the stack in order for the pet info to parse properly cause the id in the custom data is the neu id
-					ItemStack copied = stack.copy();
-					CompoundTag customData = copied.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+			//Find pet in NEU repo
+			ItemStack stack = ItemRepository.getItemsStream()
+					.filter(s -> s.getStackOrThrow().getHoverName().getString().contains("] " + name))
+					.findFirst()
+					.map(FlexibleItemStack::getStackOrThrow)
+					.orElse(ItemStack.EMPTY);
 
-					customData.putString("id", "PET");
-					copied.set(DataComponents.CUSTOM_DATA, CustomData.of(customData));
+			if (!stack.isEmpty()) {
+				//We need to change the item id of the stack in order for the pet info to parse properly cause the id in the custom data is the neu id
+				ItemStack copied = stack.copy();
+				CompoundTag customData = copied.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
 
-					//If the pet from the NEU repo is missing the data then try to guess the type
-					String type = !copied.getPetInfo().isEmpty() ? copied.getPetInfo().type() : name.toUpperCase(Locale.ENGLISH).replace(" ", "_");
-					PetInfo petInfo = new PetInfo(Optional.of(name), type, exp, rarity, Optional.empty(), Optional.empty(), Optional.empty());
+				customData.putString("id", "PET");
+				copied.set(DataComponents.CUSTOM_DATA, CustomData.of(customData));
 
-					CACHED_PETS.put(petInfo);
-					CACHED_PETS.save();
-				}
+				//If the pet from the NEU repo is missing the data then try to guess the type
+				String type = !copied.getPetInfo().isEmpty() ? copied.getPetInfo().type() : name.toUpperCase(Locale.ENGLISH).replace(" ", "_");
+				PetInfo petInfo = new PetInfo(Optional.of(name), type, exp, rarity, Optional.empty(), Optional.empty(), Optional.empty());
+
+				CACHED_PETS.put(petInfo);
+				CACHED_PETS.save();
 			}
 		}
-
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	public static @Nullable PetInfo getCurrentPet() {

@@ -9,13 +9,14 @@ import de.hysky.skyblocker.events.SkyblockEvents;
 import de.hysky.skyblocker.utils.Area;
 import de.hysky.skyblocker.utils.ColorUtils;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.data.ProfiledData;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
 import de.hysky.skyblocker.utils.waypoint.Waypoint;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -96,31 +97,28 @@ public class TheEnd {
 			HIT_ZEALOTS.clear();
 		});
 
-		ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-			if (!Utils.isInTheEnd() || overlay) return true;
-			onMessage(message.getString());
-			return true;
-		});
+		ChatMessageListener.EVENT.register(TheEnd::onChatMessage);
 
 		LevelRenderExtractionCallback.EVENT.register(TheEnd::extractRendering);
 		PROFILES_STATS.init();
 	}
 
-	private static void onMessage(String text) {
-		if (END_STONE_PROTECTOR_TREMOR.matcher(text).matches()) {
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (END_STONE_PROTECTOR_TREMOR.matcher(messageText).matches()) {
 			if (stage == 0) checkAllProtectorLocations();
 			else stage += 1;
-		} else if (END_STONE_PROTECTOR_RISES.matcher(text).matches()) {
+		} else if (END_STONE_PROTECTOR_RISES.matcher(messageText).matches()) {
 			if (currentProtectorLocation == null) checkAllProtectorLocations();
 			stage = 5;
-		} else if (END_STONE_PROTECTOR_FIGHT_STARTS.matcher(text).matches()) {
+		} else if (END_STONE_PROTECTOR_FIGHT_STARTS.matcher(messageText).matches()) {
 			resetLocation();
-		} else if (SPECIAL_ZEALOT_SPAWNED.matcher(text).matches()) {
+		} else if (SPECIAL_ZEALOT_SPAWNED.matcher(messageText).matches()) {
 			// Assume that the player will kill it and get the Summoning Eye
 			onSpecialZealot();
 		}
 
 		EndHudWidget.getInstance().update();
+		return ChatFilterResult.PASS;
 	}
 
 	private static void checkAllProtectorLocations() {

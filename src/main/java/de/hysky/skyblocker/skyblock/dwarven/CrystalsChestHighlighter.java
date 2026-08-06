@@ -6,10 +6,11 @@ import de.hysky.skyblocker.events.ParticleEvents;
 import de.hysky.skyblocker.events.PlaySoundEvents;
 import de.hysky.skyblocker.events.WorldEvents;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -45,7 +46,7 @@ public class CrystalsChestHighlighter {
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(CrystalsChestHighlighter::extractLocationFromMessage);
+		ChatMessageListener.EVENT.register(CrystalsChestHighlighter::onChatMessage);
 		LevelRenderExtractionCallback.EVENT.register(CrystalsChestHighlighter::extractRendering);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> reset());
 		WorldEvents.BLOCK_STATE_UPDATE.register(CrystalsChestHighlighter::onBlockUpdate);
@@ -60,16 +61,17 @@ public class CrystalsChestHighlighter {
 		currentLockCount = 0;
 	}
 
-	private static boolean extractLocationFromMessage(Component text, boolean b) {
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
 		if (!Utils.isInCrystalHollows() || !SkyblockerConfigManager.get().mining.crystalHollows.chestHighlighter) {
-			return true;
+			return ChatFilterResult.PASS;
 		}
 		//if a chest is spawned add chest to look for
-		if (text.getString().matches(CHEST_SPAWN_MESSAGE)) {
+		if (messageText.matches(CHEST_SPAWN_MESSAGE)) {
 			waitingForChest += 1;
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	/**

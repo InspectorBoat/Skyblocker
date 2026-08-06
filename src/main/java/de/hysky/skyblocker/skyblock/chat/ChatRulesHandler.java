@@ -9,6 +9,8 @@ import de.hysky.skyblocker.utils.FlexibleItemStack;
 import de.hysky.skyblocker.utils.Location;
 import de.hysky.skyblocker.utils.TextTransformer;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.data.JsonData;
 import de.hysky.skyblocker.utils.render.gui.BasicToast;
 import de.hysky.skyblocker.utils.render.title.Title;
@@ -17,8 +19,6 @@ import de.hysky.skyblocker.utils.scheduler.Scheduler;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -44,7 +44,7 @@ public class ChatRulesHandler {
 	@Init
 	public static void init() {
 		ClientLifecycleEvents.CLIENT_STARTED.register(_ -> CHAT_RULE_LIST.init());
-		ClientReceiveMessageEvents.ALLOW_GAME.register(ChatRulesHandler::checkMessage);
+		ChatMessageListener.EVENT.register(ChatRulesHandler::onChatMessage);
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, _) ->
 				dispatcher.register(ClientCommands.literal(SkyblockerMod.NAMESPACE)
 						.then(ClientCommands.literal("chatRules")
@@ -64,13 +64,12 @@ public class ChatRulesHandler {
 	/**
 	 * Checks each rule in {@link ChatRulesHandler#CHAT_RULE_LIST} to see if they are a match for the message and if so change outputs based on the options set in the {@link ChatRule}.
 	 */
-	private static boolean checkMessage(Component message, boolean overlay) {
-		if (overlay || !Utils.isOnSkyblock()) return true;
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
 		List<ChatRule> rules = CHAT_RULE_LIST.getData();
-		if (!CHAT_RULE_LIST.isLoaded() || rules.isEmpty()) return true;
+		if (!CHAT_RULE_LIST.isLoaded() || rules.isEmpty()) return ChatFilterResult.PASS;
 
 		for (ChatRule rule : rules) {
-			ChatRule.Match match = rule.isMatch(rule.getIncludeFormatting() ? TextTransformer.toLegacy(message) : ChatFormatting.stripFormatting(message.getString()));
+			ChatRule.Match match = rule.isMatch(rule.getIncludeFormatting() ? TextTransformer.toLegacy(message) : messageText);
 			if (!match.matches()) continue;
 
 			// Get a replacement message
@@ -101,9 +100,9 @@ public class ChatRulesHandler {
 			}
 
 			// Do not send the original message
-			if (!sendOriginal) return false;
+			if (!sendOriginal) return ChatFilterResult.FILTER;
 		}
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	/**

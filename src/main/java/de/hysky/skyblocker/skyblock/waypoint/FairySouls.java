@@ -14,6 +14,8 @@ import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.NEURepoManager;
 import de.hysky.skyblocker.utils.PosUtils;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.render.RenderHelper;
 import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
@@ -22,7 +24,6 @@ import de.hysky.skyblocker.utils.waypoint.Waypoint;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.core.BlockPos;
@@ -75,7 +76,7 @@ public class FairySouls {
 		ClientLifecycleEvents.CLIENT_STOPPING.register(FairySouls::saveFoundFairySouls);
 		ClientCommandRegistrationCallback.EVENT.register(FairySouls::registerCommands);
 		LevelRenderExtractionCallback.EVENT.register(FairySouls::extractRendering);
-		ClientReceiveMessageEvents.ALLOW_GAME.register(FairySouls::onChatMessage);
+		ChatMessageListener.EVENT.register(FairySouls::onChatMessage);
 	}
 
 	private static void loadFairySouls() {
@@ -168,13 +169,12 @@ public class FairySouls {
 		}
 	}
 
-	private static boolean onChatMessage(Component text, boolean overlay) {
-		String message = text.getString();
-		if (message.equals("You have already found that Fairy Soul!") || message.equals("§d§lSOUL! §fYou found a §dFairy Soul§f!")) {
+	private static ChatFilterResult onChatMessage(Component message, String messageAsString) {
+		if (messageAsString.equals("You have already found that Fairy Soul!") || message.equals("§d§lSOUL! §fYou found a §dFairy Soul§f!")) {
 			markClosestFairyFound();
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static void markClosestFairyFound() {

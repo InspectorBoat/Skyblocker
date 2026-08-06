@@ -5,11 +5,12 @@ import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.scheduler.MessageScheduler;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.ClickEvent;
@@ -42,7 +43,7 @@ public class ChatPositionShare {
 					ClientCommands.literal("skyblocker").then(ClientCommands.literal("shareCoords").executes(context -> sharePlayerPosition(context.getSource())))
 					);
 		});
-		ClientReceiveMessageEvents.ALLOW_GAME.register(ChatPositionShare::onMessage);
+		ChatMessageListener.EVENT.register(ChatPositionShare::onChatMessage);
 	}
 
 	private static int sharePlayerPosition(FabricClientCommandSource source) {
@@ -51,17 +52,16 @@ public class ChatPositionShare {
 		return Command.SINGLE_SUCCESS;
 	}
 
-	private static boolean onMessage(Component text, boolean overlay) {
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
 		if (Utils.isOnSkyblock() && SkyblockerConfigManager.get().uiAndVisuals.waypoints.enableChatWaypoints) {
-			String message = text.getString();
-
 			// prevents parsing skyblocker's own messages. Also prevents TH solver from parsing as it already has own waypoint
-			if (message.startsWith("[Skyblocker]") || message.startsWith("§e[NPC] Treasure Hunter§f:")) {
-				return true;
+			if (messageText.startsWith("[Skyblocker]") || messageText.startsWith("§e[NPC] Treasure Hunter§f:")) {
+				return ChatFilterResult.PASS;
 			}
 
 			for (Pattern pattern : PATTERNS) {
-				Matcher matcher = pattern.matcher(message);
+				Matcher matcher = pattern.matcher(messageText);
 				if (matcher.find()) {
 					try {
 						String x = matcher.group("x");
@@ -77,7 +77,7 @@ public class ChatPositionShare {
 			}
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private static void requestWaypoint(String x, String y, String z, String area) {

@@ -14,10 +14,11 @@ import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.ItemUtils;
 import de.hysky.skyblocker.utils.ProfileUtils;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.mayor.MayorUtils;
 import de.hysky.skyblocker.utils.scheduler.MessageScheduler;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -92,20 +93,23 @@ public class DungeonScore {
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> reset());
 		DungeonEvents.DUNGEON_STARTED.register(DungeonScore::onDungeonStart);
 		DungeonEvents.DUNGEON_ENDED.register(DungeonScore::reset);
-		ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-			if (overlay || !Utils.isInDungeons()) return true;
-			String str = message.getString();
-			if (dungeonStarted) {
-				checkMessageForDeaths(str);
-				checkMessageForWatcher(str);
-				if (floorHasMimics) checkMessageForMimic(str); //Only called when the message is not cancelled & isn't on the action bar, complementing MimicFilter
-				checkMessageForPrince(str);
-				checkMessageForBat(str);
-			}
-
-			return true;
-		});
+		ChatMessageListener.EVENT.register(DungeonScore::onChatMessage);
 		SkyblockEvents.MAYOR_CHANGE.register(() -> isMayorPaul = MayorUtils.getActivePerks().contains("EZPZ"));
+	}
+
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!Utils.isInDungeons()) return ChatFilterResult.PASS;
+		String str = message.getString();
+		if (dungeonStarted) {
+			checkMessageForDeaths(str);
+			checkMessageForWatcher(str);
+			if (floorHasMimics) checkMessageForMimic(str); //Only called when the message is not cancelled & isn't on the action bar, complementing MimicFilter
+			checkMessageForPrince(str);
+			checkMessageForBat(str);
+		}
+
+		return ChatFilterResult.PASS;
 	}
 
 	public static void tick() {

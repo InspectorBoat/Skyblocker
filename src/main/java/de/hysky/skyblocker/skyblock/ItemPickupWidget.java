@@ -13,10 +13,11 @@ import de.hysky.skyblocker.utils.Formatters;
 import de.hysky.skyblocker.utils.ItemUtils;
 import de.hysky.skyblocker.utils.Location;
 import de.hysky.skyblocker.utils.NEURepoManager;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
 import io.github.moulberry.repo.data.NEUItem;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -31,6 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 
 @RegisterWidget
 public class ItemPickupWidget extends ElementBasedWidget {
@@ -53,7 +55,7 @@ public class ItemPickupWidget extends ElementBasedWidget {
 		super(Component.literal("Items"), TextColor.AQUA.getValue(), "Item Pickup");
 		instance = this;
 
-		ClientReceiveMessageEvents.ALLOW_GAME.register(instance::onChatMessage);
+		ChatMessageListener.EVENT.register(instance::onChatMessage);
 		ClientPlayConnectionEvents.JOIN.register((_, _, _) -> changingLobby = true);
 		// Make changingLobby true for a short period while the player loads into a new lobby and their items are loading
 		SkyblockEvents.LOCATION_CHANGE.register(_ -> Scheduler.INSTANCE.schedule(() -> changingLobby = false, LOBBY_CHANGE_DELAY));
@@ -81,17 +83,14 @@ public class ItemPickupWidget extends ElementBasedWidget {
 	 * Checks chat messages for a stack update message, then finds the items linked to it
 	 */
 	@SuppressWarnings("SameReturnValue")
-	private boolean onChatMessage(Component message, boolean overlay) {
-		if (!ChatFormatting.stripFormatting(message.getString()).startsWith(SACKS_MESSAGE_START)) return true;
-		if (!SkyblockerConfigManager.get().uiAndVisuals.itemPickup.sackNotifications) return true;
-		HoverEvent hoverEvent = message.getSiblings().getFirst().getStyle().getHoverEvent();
-		if (hoverEvent == null || hoverEvent.action() != HoverEvent.Action.SHOW_TEXT) return true;
-		String hoverMessage = ((HoverEvent.ShowText) hoverEvent).value().getString();
+	private ChatFilterResult onChatMessage(Component message, String messageAsString) {
+		if (!SkyblockerConfigManager.get().uiAndVisuals.itemPickup.sackNotifications || !messageAsString.startsWith(SACKS_MESSAGE_START)) return ChatFilterResult.PASS;
+		if (!(message.getSiblings().getFirst().getStyle().getHoverEvent() instanceof HoverEvent.ShowText(Component hoverComponent))) return ChatFilterResult.PASS;
+		String hoverMessage = ChatFormatting.stripFormatting(hoverComponent.getString());
 		boolean split = SkyblockerConfigManager.get().uiAndVisuals.itemPickup.splitNotifications;
 
-		Matcher matcher = CHANGE_REGEX.matcher(ChatFormatting.stripFormatting(hoverMessage));
+		Matcher matcher = CHANGE_REGEX.matcher(hoverMessage);
 		while (matcher.find()) {
-
 			ItemStack item = getItem(matcher.group(3)).getStackOrThrow();
 			int count = Formatters.parseNumber(matcher.group(2)).intValue();
 			//positive
@@ -100,7 +99,7 @@ public class ItemPickupWidget extends ElementBasedWidget {
 			else if (matcher.group(1).equals("-")) updateCount(split ? removedSackCount : removedCount, item, count);
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	@Override

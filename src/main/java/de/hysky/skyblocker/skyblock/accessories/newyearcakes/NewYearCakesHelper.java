@@ -3,12 +3,13 @@ package de.hysky.skyblocker.skyblock.accessories.newyearcakes;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.utils.Formatters;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.render.gui.ColorHighlight;
 import de.hysky.skyblocker.utils.container.SimpleContainerSolver;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -31,7 +32,7 @@ public class NewYearCakesHelper extends SimpleContainerSolver {
 
 	private NewYearCakesHelper() {
 		super("Auctions: \".*\"");
-		ClientReceiveMessageEvents.ALLOW_GAME.register(this::onChatMessage);
+		ChatMessageListener.EVENT.register(this::onChatMessage);
 	}
 
 	public static int getCakeYear(ItemStack stack) {
@@ -60,12 +61,12 @@ public class NewYearCakesHelper extends SimpleContainerSolver {
 		return cakes.computeIfAbsent(Utils.getProfile(), _ -> new IntOpenHashSet()).add(year);
 	}
 
-	private boolean onChatMessage(Component message, boolean overlay) {
+	private ChatFilterResult onChatMessage(Component message, String messageText) {
 		if (isEnabled()) {
-			addCake(getCakeYear(NEW_YEAR_CAKE_PURCHASE, message.getString()));
+			addCake(getCakeYear(NEW_YEAR_CAKE_PURCHASE, messageText));
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	@Override

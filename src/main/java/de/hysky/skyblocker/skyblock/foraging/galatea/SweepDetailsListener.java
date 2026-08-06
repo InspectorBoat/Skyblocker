@@ -68,7 +68,7 @@ public class SweepDetailsListener implements ChatMessageListener {
 	}
 
 	@Override
-	public ChatFilterResult onMessage(Component message, String asString) {
+	public ChatFilterResult onChatMessage(Component message, String messageText) {
 		if (!SweepDetailsHudWidget.LOCATIONS.contains(Utils.getLocation())) return ChatFilterResult.PASS;
 		if (!SkyblockerConfigManager.get().foraging.moongladeMarsh.enableSweepDetailsWidget) return ChatFilterResult.PASS;
 		String msg = message.getString();

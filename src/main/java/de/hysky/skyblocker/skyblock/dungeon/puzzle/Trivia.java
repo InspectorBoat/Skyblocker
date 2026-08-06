@@ -6,12 +6,13 @@ import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.skyblock.dungeon.secrets.DungeonManager;
 import de.hysky.skyblocker.skyblock.dungeon.secrets.Room;
 import de.hysky.skyblocker.skyblock.waypoint.FairySouls;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.time.SkyblockTime;
 import de.hysky.skyblocker.utils.Utils;
 import de.hysky.skyblocker.utils.render.RenderHelper;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -52,7 +53,7 @@ public class Trivia extends DungeonPuzzle {
 
 	public Trivia() {
 		super("trivia", "trivia-room");
-		ClientReceiveMessageEvents.ALLOW_GAME.register(this::onMessage);
+		ChatMessageListener.EVENT.register(this::onChatMessage);
 	}
 
 
@@ -61,16 +62,17 @@ public class Trivia extends DungeonPuzzle {
 		return Utils.isInDungeons() && SkyblockerConfigManager.get().dungeons.puzzleSolvers.solveTrivia;
 	}
 
-	public boolean onMessage(Component message, boolean overlay) {
-		if (!shouldRun() || overlay) return true;
+	@SuppressWarnings("SameReturnValue")
+	public ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!shouldRun()) return ChatFilterResult.PASS;
 
-		Matcher matcher = PATTERN.matcher(ChatFormatting.stripFormatting(message.getString()));
-		if (!matcher.matches()) return true;
+		Matcher matcher = PATTERN.matcher(messageText);
+		if (!matcher.matches()) return ChatFilterResult.PASS;
 
 		// Reset state when a question is answered and when the puzzle is failed or completed.
 		if (matcher.group(4) != null) {
 			reset();
-			return true;
+			return ChatFilterResult.PASS;
 		}
 
 		String answerChoice = matcher.group(3);
@@ -79,18 +81,18 @@ public class Trivia extends DungeonPuzzle {
 			updateSolutions(matcher.group(0));
 			reset();
 		} else {
-			if (solutions.isEmpty()) return true;
+			if (solutions.isEmpty()) return ChatFilterResult.PASS;
 			if (!solutions.contains(answerChoice)) {
 				// Incorrect answer choice
 				LocalPlayer player = Minecraft.getInstance().player;
-				if (player == null) return true;
+				if (player == null) return ChatFilterResult.PASS;
 				Utils.sendMessageToBypassEvents(Component.nullToEmpty("    " + ChatFormatting.GOLD + " " + matcher.group(2) + " " + ChatFormatting.RED + answerChoice));
-				return false;
+				return ChatFilterResult.PASS;
 			}
 			currentSolution = matcher.group(2);
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	private void updateSolutions(String question) {

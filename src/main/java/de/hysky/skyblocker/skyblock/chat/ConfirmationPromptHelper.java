@@ -7,8 +7,9 @@ import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.utils.Constants;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.scheduler.MessageScheduler;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
@@ -43,7 +44,7 @@ public class ConfirmationPromptHelper {
 	private static long commandFoundAt;
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(ConfirmationPromptHelper::onMessage);
+		ChatMessageListener.EVENT.register(ConfirmationPromptHelper::onChatMessage);
 		ScreenEvents.AFTER_INIT.register((_, screen, _, _) -> {
 			//Don't check for the command being present in case the user opens the chat before the prompt is sent
 			if (Utils.isOnSkyblock() && screen instanceof ChatScreen && SkyblockerConfigManager.get().chat.confirmationPromptHelper) {
@@ -77,18 +78,17 @@ public class ConfirmationPromptHelper {
 		return command != null && commandFoundAt + 60_000 > System.currentTimeMillis();
 	}
 
-	private static boolean containsConfirmationPhrase(Component message) {
-		String messageStr = message.getString();
+	private static boolean containsConfirmationPhrase(String message) {
 		for (String phrase : CONFIRMATION_PHRASES) {
-			if (messageStr.contains(phrase)) {
+			if (message.contains(phrase)) {
 				return true;
 			}
 		}
 		return false;
 	}
 
-	private static boolean onMessage(Component message, boolean overlay) {
-		if (Utils.isOnSkyblock() && !overlay && SkyblockerConfigManager.get().chat.confirmationPromptHelper && containsConfirmationPhrase(message)) {
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (SkyblockerConfigManager.get().chat.confirmationPromptHelper && containsConfirmationPhrase(messageText)) {
 			Optional<String> confirmationCommand = message.visit((style, asString) -> {
 				ClickEvent event = style.getClickEvent();
 				asString = asString.replaceAll("\\s+", " ").trim();	// clear newline '\n' and trim spaces
@@ -110,6 +110,6 @@ public class ConfirmationPromptHelper {
 			}
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 }

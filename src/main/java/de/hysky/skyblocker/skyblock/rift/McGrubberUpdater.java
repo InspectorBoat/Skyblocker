@@ -6,7 +6,8 @@ import de.hysky.skyblocker.skyblock.item.tooltip.info.TooltipInfoType;
 import de.hysky.skyblocker.utils.ItemUtils;
 import de.hysky.skyblocker.utils.RegexUtils;
 import de.hysky.skyblocker.utils.Utils;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
@@ -47,7 +48,7 @@ public class McGrubberUpdater {
 				ScreenEvents.remove(screen).register(_ -> McGrubberUpdater.fromConsumableItems(containerScreen));
 			}
 		});
-		ClientReceiveMessageEvents.ALLOW_GAME.register(McGrubberUpdater::fromOrbPickup);
+		ChatMessageListener.EVENT.register(McGrubberUpdater::onChatMessage);
 	}
 
 	/**
@@ -107,14 +108,13 @@ public class McGrubberUpdater {
 	/**
 	 * Detects McGrubber stacks from picking up orbs in the rift
 	 */
-	private static boolean fromOrbPickup(Component text, boolean overlay) {
-		if (!SkyblockerConfigManager.get().otherLocations.rift.autoDetectMcGrubber) {
-			return true;
-		} else if (!Utils.isOnSkyblock() || !Utils.isInTheRift() || overlay) {
-			return true;
+	@SuppressWarnings("SameReturnValue")
+	private static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (!SkyblockerConfigManager.get().otherLocations.rift.autoDetectMcGrubber || !Utils.isInTheRift()) {
+			return ChatFilterResult.PASS;
 		}
 
-		Matcher matcher = ORB_PICKUP.matcher(text.getString());
+		Matcher matcher = ORB_PICKUP.matcher(messageText);
 
 		if (matcher.matches()) {
 			int motes = RegexUtils.parseIntFromMatcher(matcher, "motes");
@@ -126,6 +126,6 @@ public class McGrubberUpdater {
 			}
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 }

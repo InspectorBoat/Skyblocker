@@ -9,10 +9,11 @@ import de.hysky.skyblocker.skyblock.item.slottext.SlotTextManager;
 import de.hysky.skyblocker.skyblock.item.tooltip.BackpackPreview;
 import de.hysky.skyblocker.utils.ItemUtils;
 import de.hysky.skyblocker.utils.Utils;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.render.gui.SearchableGridWidget;
 import de.hysky.skyblocker.utils.render.texture.FallbackedTexture;
 import de.hysky.skyblocker.utils.scheduler.MessageScheduler;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ComponentPath;
@@ -94,11 +95,11 @@ public class StorageOverlayScreen extends AbstractContainerScreen<StorageOverlay
 
 	@Init
 	public static void setup() { //already had init therefore called setup
-		ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-			if (Utils.isOnSkyblock() && !overlay && CHANGING_BACKPACK_PATTERN.matcher(message.getString()).find()) {
+		ChatMessageListener.EVENT.register((_, messageText) -> {
+			if (Utils.isOnSkyblock() && CHANGING_BACKPACK_PATTERN.matcher(messageText).find()) {
 				disableOnNextLoad = true;
 			}
-			return true;
+			return ChatFilterResult.PASS;
 		});
 		ClientSendMessageEvents.MODIFY_COMMAND.register(command -> {
 			if (!SkyblockerConfigManager.get().uiAndVisuals.storageOverlay.enabled || savedIndex < 0 || Minecraft.getInstance().gui.screen() instanceof StorageOverlayScreen || !command.equals("storage")) {

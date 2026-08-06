@@ -11,6 +11,8 @@ import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.events.SkyblockEvents;
 import de.hysky.skyblocker.mixins.accessors.ChatListenerAccessor;
 import de.hysky.skyblocker.skyblock.slayers.SlayerManager;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.purse.PurseChangeCause;
 import de.hysky.skyblocker.utils.scheduler.MessageScheduler;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
@@ -26,7 +28,6 @@ import net.azureaaron.hmapi.network.packet.s2c.HelloS2CPacket;
 import net.azureaaron.hmapi.network.packet.s2c.HypixelS2CPacket;
 import net.azureaaron.hmapi.network.packet.v1.s2c.LocationUpdateS2CPacket;
 import net.azureaaron.hmapi.network.packet.v1.s2c.PlayerInfoS2CPacket;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
@@ -296,7 +297,7 @@ public class Utils {
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(Utils::onChatMessage);
+		ChatMessageListener.EVENT.register(Utils::onChatMessage);
 		ClientPlayConnectionEvents.DISCONNECT.register((_, _) -> onDisconnect());
 
 		//Register Mod API stuff
@@ -593,10 +594,7 @@ public class Utils {
 	 *
 	 * @return not display the message in chat if the command is sent by the mod
 	 */
-	public static boolean onChatMessage(Component text, boolean overlay) {
-		if (overlay) return true;
-		String message = text.getString();
-
+	public static ChatFilterResult onChatMessage(Component text, String message) {
 		if (message.startsWith("{\"server\":") && message.endsWith("}")) {
 			parseLocRaw(message);
 		}
@@ -617,11 +615,11 @@ public class Utils {
 				int suggestions = profileSuggestionMessages;
 				profileSuggestionMessages++;
 
-				return suggestions >= 2;
+				return suggestions >= 2 ? ChatFilterResult.PASS : ChatFilterResult.FILTER;
 			}
 		}
 
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
 	/**

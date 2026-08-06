@@ -48,7 +48,7 @@ public interface ChatMessageListener {
 	Event<ChatMessageListener> EVENT = EventFactory.createArrayBacked(ChatMessageListener.class,
 			listeners -> (message, asString) -> {
 				for (ChatMessageListener listener : listeners) {
-					ChatFilterResult result = listener.onMessage(message, asString);
+					ChatFilterResult result = listener.onChatMessage(message, asString);
 					if (result != ChatFilterResult.PASS) return result;
 				}
 				return ChatFilterResult.PASS;
@@ -104,7 +104,7 @@ public interface ChatMessageListener {
 				return true;
 			}
 
-			ChatFilterResult result = EVENT.invoker().onMessage(message, ChatFormatting.stripFormatting(message.getString()));
+			ChatFilterResult result = EVENT.invoker().onChatMessage(message, ChatFormatting.stripFormatting(message.getString()));
 
 			switch (result) {
 				case ACTION_BAR -> {
@@ -134,5 +134,5 @@ public interface ChatMessageListener {
 		});
 	}
 
-	ChatFilterResult onMessage(Component message, String asString);
+	ChatFilterResult onChatMessage(Component message, String messageText);
 }

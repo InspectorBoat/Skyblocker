@@ -4,9 +4,10 @@ import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.skyblock.dungeon.secrets.DungeonManager;
 import de.hysky.skyblocker.skyblock.dungeon.secrets.Room;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import de.hysky.skyblocker.utils.render.RenderHelper;
 import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -26,6 +27,7 @@ import org.jspecify.annotations.Nullable;
 public class ThreeWeirdos extends DungeonPuzzle {
 	@SuppressWarnings("unused")
 	private static final ThreeWeirdos INSTANCE = new ThreeWeirdos();
+	/// Matches only the weirdo with the correct chest
 	protected static final Pattern PATTERN = Pattern.compile("^\\[NPC] ([A-Z][a-z]+): (?:The reward is(?: not in my chest!|n't in any of our chests\\.)|My chest (?:doesn't have the reward\\. We are all telling the truth\\.|has the reward and I'm telling the truth!)|At least one of them is lying, and the reward is not in [A-Z][a-z]+'s chest!|Both of them are telling the truth\\. Also, [A-Z][a-z]+ has the reward in their chest!)$");
 	private static final float[] GREEN_COLOR_COMPONENTS = new float[]{0, 1, 0};
 	private static @Nullable BlockPos pos;
@@ -33,26 +35,9 @@ public class ThreeWeirdos extends DungeonPuzzle {
 
 	private ThreeWeirdos() {
 		super("three-weirdos", "three-chests");
-		ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
-			ClientLevel world = Minecraft.getInstance().level;
-			if (overlay || !shouldSolve() || !SkyblockerConfigManager.get().dungeons.puzzleSolvers.solveThreeWeirdos || world == null || !DungeonManager.isCurrentRoomMatched()) return true;
-
-			Matcher matcher = PATTERN.matcher(ChatFormatting.stripFormatting(message.getString()));
-			if (!matcher.matches()) return true;
-			String name = matcher.group(1);
-			Room room = DungeonManager.getCurrentRoom();
-			if (room == null || !room.isMatched()) return true;
-
-			checkForNPC(world, room, new BlockPos(13, 69, 24), name);
-			checkForNPC(world, room, new BlockPos(15, 69, 25), name);
-			checkForNPC(world, room, new BlockPos(17, 69, 24), name);
-
-			return true;
-		});
+		ChatMessageListener.EVENT.register(this::onChatMessage);
 		UseBlockCallback.EVENT.register((_, _, _, blockHitResult) -> {
-			if (blockHitResult.getType() == HitResult.Type.BLOCK && blockHitResult.getBlockPos().equals(pos)) {
-				pos = null;
-			}
+			if (blockHitResult.getType() == HitResult.Type.BLOCK && blockHitResult.getBlockPos().equals(pos)) pos = null;
 			return InteractionResult.PASS;
 		});
 	}
@@ -60,6 +45,28 @@ public class ThreeWeirdos extends DungeonPuzzle {
 	@Init
 	public static void init() {
 	}
+
+	/**
+	 * We only need to matche the messag of the weirdo with the correct chest, other weirdos are unnecessary
+	 */
+	@SuppressWarnings("SameReturnValue")
+	private ChatFilterResult onChatMessage(Component message, String messageText) {
+		ClientLevel world = Minecraft.getInstance().level;
+		if (!shouldSolve() || !SkyblockerConfigManager.get().dungeons.puzzleSolvers.solveThreeWeirdos || world == null || !DungeonManager.isCurrentRoomMatched()) return ChatFilterResult.PASS;
+
+		Matcher matcher = PATTERN.matcher(messageText);
+		if (!matcher.matches()) return ChatFilterResult.PASS;
+		String name = matcher.group(1);
+		Room room = DungeonManager.getCurrentRoom();
+		if (room == null || !room.isMatched()) return ChatFilterResult.PASS;
+
+		checkForNPC(world, room, new BlockPos(13, 69, 24), name);
+		checkForNPC(world, room, new BlockPos(15, 69, 25), name);
+		checkForNPC(world, room, new BlockPos(17, 69, 24), name);
+
+		return ChatFilterResult.PASS;
+	}
+
 
 	private void checkForNPC(ClientLevel world, Room room, BlockPos relative, String name) {
 		BlockPos npcPos = room.relativeToActual(relative);

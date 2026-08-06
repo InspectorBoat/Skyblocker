@@ -1,67 +1,70 @@
 package de.hysky.skyblocker.skyblock;
 
+import de.hysky.skyblocker.events.DungeonEvents;
+import de.hysky.skyblocker.utils.chat.ChatFilterResult;
+import de.hysky.skyblocker.utils.chat.ChatMessageListener;
 import org.jspecify.annotations.Nullable;
 
 import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.utils.Utils;
 import de.hysky.skyblocker.utils.scheduler.Scheduler;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Hud;
 import net.minecraft.network.chat.Component;
 
 public class QuiverWarning {
-	private static @Nullable Type warning = null;
+	private static @Nullable ArrowsLeft queuedWarning = null;
 
 	@Init
 	public static void init() {
-		ClientReceiveMessageEvents.ALLOW_GAME.register(QuiverWarning::onChatMessage);
+
+		ChatMessageListener.EVENT.register(QuiverWarning::onChatMessage);
+		DungeonEvents.DUNGEON_ENDED.register(QuiverWarning::update);
 		Scheduler.INSTANCE.scheduleCyclic(QuiverWarning::update, 10);
 	}
 
-	public static boolean onChatMessage(Component text, boolean overlay) {
-		String message = text.getString();
-		if (SkyblockerConfigManager.get().general.quiverWarning.enableQuiverWarning && message.endsWith("left in your Quiver!")) {
-			Minecraft.getInstance().gui.hud.resetTitleTimes();
-			if (message.startsWith("You only have 50")) {
-				onChatMessage(Type.FIFTY_LEFT);
-			} else if (message.startsWith("You only have 10")) {
-				onChatMessage(Type.TEN_LEFT);
-			} else if (message.startsWith("You don't have any more")) {
-				onChatMessage(Type.EMPTY);
+	public static ChatFilterResult onChatMessage(Component message, String messageText) {
+		if (SkyblockerConfigManager.get().general.quiverWarning.enableQuiverWarning && messageText.startsWith("QUIVER!")) {
+			if (messageText.startsWith("QUIVER! You only have 50")) {
+				showWarning(ArrowsLeft.FIFTY_LEFT);
+			} else if (messageText.startsWith("QUIVER! You only have 10")) {
+				showWarning(ArrowsLeft.TEN_LEFT);
+			} else if (messageText.startsWith("QUIVER! You have run out of")) {
+				showWarning(ArrowsLeft.EMPTY);
 			}
 		}
-		return true;
+		return ChatFilterResult.PASS;
 	}
 
-	private static void onChatMessage(Type warning) {
+	private static void showWarning(ArrowsLeft warning) {
+		Minecraft.getInstance().gui.hud.resetTitleTimes();
 		if (!Utils.isInDungeons()) {
 			Minecraft.getInstance().gui.hud.setTitle(Component.translatable(warning.key).withStyle(ChatFormatting.RED));
 		} else if (SkyblockerConfigManager.get().general.quiverWarning.enableQuiverWarningInDungeons) {
 			Minecraft.getInstance().gui.hud.setTitle(Component.translatable(warning.key).withStyle(ChatFormatting.RED));
-			QuiverWarning.warning = warning;
+			QuiverWarning.queuedWarning = warning;
 		}
 	}
 
 	public static void update() {
-		if (warning != null && SkyblockerConfigManager.get().general.quiverWarning.enableQuiverWarning && SkyblockerConfigManager.get().general.quiverWarning.enableQuiverWarningAfterDungeon && !Utils.isInDungeons()) {
+		if (queuedWarning != null && SkyblockerConfigManager.get().general.quiverWarning.enableQuiverWarning && SkyblockerConfigManager.get().general.quiverWarning.enableQuiverWarningAfterDungeon && !Utils.isInDungeons()) {
 			Hud hud = Minecraft.getInstance().gui.hud;
 			hud.resetTitleTimes();
-			hud.setTitle(Component.translatable(warning.key).withStyle(ChatFormatting.RED));
-			warning = null;
+			hud.setTitle(Component.translatable(queuedWarning.key).withStyle(ChatFormatting.RED));
+			queuedWarning = null;
 		}
 	}
 
-	private enum Type {
+	private enum ArrowsLeft {
 		NONE(""),
 		FIFTY_LEFT("50Left"),
 		TEN_LEFT("10Left"),
 		EMPTY("empty");
 		private final String key;
 
-		Type(String key) {
+		ArrowsLeft(String key) {
 			this.key = "skyblocker.quiverWarning." + key;
 		}
 	}
