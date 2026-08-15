@@ -11,7 +11,7 @@ public class MessageScheduler extends Scheduler {
 	/**
 	 * The minimum delay that the server will accept between chat messages.
 	 */
-	private static final int MIN_DELAY = 200;
+	private static final int MIN_DELAY = 0;
 	public static final MessageScheduler INSTANCE = new MessageScheduler();
 	/**
 	 * The timestamp of the last message send,

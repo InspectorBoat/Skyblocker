@@ -29,7 +29,7 @@ import de.hysky.skyblocker.skyblock.slayers.boss.demonlord.FirePillarAnnouncer;
 import de.hysky.skyblocker.skyblock.slayers.boss.voidgloom.BeaconHighlighter;
 import de.hysky.skyblocker.skyblock.tabhud.util.PlayerListManager;
 import de.hysky.skyblocker.skyblock.teleport.PredictiveSmoothAOTE;
-import de.hysky.skyblocker.skyblock.teleport.ResponsiveSmoothAOTE;
+import de.hysky.skyblocker.skyblock.teleport.ReactiveSmoothAOTE;
 import de.hysky.skyblocker.utils.Utils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
@@ -105,13 +105,13 @@ public abstract class ClientPacketListenerMixin extends ClientCommonPacketListen
 	@Inject(method = "handleMovePlayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/network/PacketProcessor;)V", shift = At.Shift.AFTER))
 	private void skyblocker$beforeTeleport(ClientboundPlayerPositionPacket packet, CallbackInfo ci, @Share("playerBeforeTeleportBlockPos") LocalRef<BlockPos> beforeTeleport) {
 		beforeTeleport.set(minecraft.player.blockPosition().immutable());
-		ResponsiveSmoothAOTE.playerGoingToTeleport();
+		ReactiveSmoothAOTE.playerGoingToTeleport();
 	}
 
 	@Inject(method = "handleMovePlayer", at = @At(value = "RETURN"))
 	private void skyblocker$onTeleport(ClientboundPlayerPositionPacket packet, CallbackInfo ci, @Share("playerBeforeTeleportBlockPos") LocalRef<BlockPos> beforeTeleport) {
 		//player has been teleported by the server, tell the smooth AOTE this
-		PredictiveSmoothAOTE.playerTeleported();
+		PredictiveSmoothAOTE.onTeleport();
 
 		TeleportMaze.INSTANCE.onTeleport(minecraft, beforeTeleport.get(), minecraft.player.blockPosition().immutable());
 	}
@@ -190,7 +190,7 @@ public abstract class ClientPacketListenerMixin extends ClientCommonPacketListen
 		//make the f3+3 screen always send ping packets even when closed
 		//this is needed to make smooth AOTE work so check if its enabled
 		UIAndVisualsConfig.SmoothAOTE options = SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE;
-		if (Utils.isOnSkyblock() && options.predictive && !PredictiveSmoothAOTE.teleportDisabled && (options.enableWeirdTransmission || options.enableEtherTransmission || options.enableInstantTransmission || options.enableSinrecallTransmission || options.enableWitherImpact)) {
+		if (Utils.isOnSkyblock() && options.predictive && (options.enableWeirdTransmission || options.enableEtherTransmission || options.enableInstantTransmission || options.enableSinrecallTransmission || options.enableWitherImpact)) {
 			return true;
 		}
 		return original;

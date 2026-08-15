@@ -1,19 +1,17 @@
 package de.hysky.skyblocker.skyblock.teleport;
 
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
+import de.hysky.skyblocker.config.configs.UIAndVisualsConfig;
 import de.hysky.skyblocker.utils.ItemUtils;
 import de.hysky.skyblocker.utils.render.RenderHelper;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 import org.jspecify.annotations.Nullable;
 
-import static de.hysky.skyblocker.skyblock.teleport.PredictiveSmoothAOTE.getItemDistance;
-
-public class ResponsiveSmoothAOTE {
+public class ReactiveSmoothAOTE {
 	private static final Minecraft CLIENT = Minecraft.getInstance();
 
 	private static long startTime;
@@ -27,12 +25,22 @@ public class ResponsiveSmoothAOTE {
 		if (CLIENT.player == null || SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.maximumAddedLag == 0) return;
 		//make sure teleport is enabled for held item
 		ItemStack heldItem = CLIENT.player.getMainHandItem();
-		String itemId = heldItem.getSkyblockId();
-		CompoundTag customData = ItemUtils.getCustomData(heldItem);
-		int distance = getItemDistance(itemId, customData);
-		if (distance == -1) {
+
+		UIAndVisualsConfig.SmoothAOTE config = SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE;
+		TeleportUtils.TeleportType teleport = TeleportUtils.TeleportType.get(
+				heldItem.getSkyblockId(),
+				ItemUtils.getCustomData(heldItem),
+				CLIENT.player.getLastSentInput().shift(),
+				config.enableWeirdTransmission,
+				config.enableInstantTransmission,
+				config.enableEtherTransmission,
+				config.enableSinrecallTransmission,
+				config.enableWitherImpact
+		);
+		if (teleport == null) {
 			return;
 		}
+
 		// make sure the camera is not in 3rd person if disabled
 		if (CLIENT.options.getCameraType() != CameraType.FIRST_PERSON && !SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.thirdPerson) {
 			return;

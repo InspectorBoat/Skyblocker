@@ -3,35 +3,28 @@ package de.hysky.skyblocker.skyblock.teleport;
 import de.hysky.skyblocker.SkyblockerMod;
 import de.hysky.skyblocker.annotations.Init;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
+import de.hysky.skyblocker.config.configs.UIAndVisualsConfig;
 import de.hysky.skyblocker.skyblock.StatusBarTracker;
-import de.hysky.skyblocker.skyblock.dungeon.DungeonBoss;
-import de.hysky.skyblocker.skyblock.dungeon.secrets.DungeonManager;
 import de.hysky.skyblocker.skyblock.entity.MobGlow;
-import de.hysky.skyblocker.utils.Area;
+import de.hysky.skyblocker.skyblock.slayers.SlayerManager;
+import de.hysky.skyblocker.skyblock.slayers.SlayerType;
 import de.hysky.skyblocker.utils.ItemAbility;
 import de.hysky.skyblocker.utils.ItemUtils;
-import de.hysky.skyblocker.utils.Location;
 import de.hysky.skyblocker.utils.Utils;
-import de.hysky.skyblocker.utils.render.RenderHelper;
-import net.fabricmc.fabric.api.event.Event;
-import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-import net.fabricmc.fabric.api.event.player.UseItemCallback;
+import de.hysky.skyblocker.utils.render.LevelRenderExtractionCallback;
+import de.hysky.skyblocker.utils.render.primitive.PrimitiveCollector;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CarpetBlock;
@@ -41,105 +34,63 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 
 public class PredictiveSmoothAOTE {
+	public record InFlightTeleport(Vec3 startPos, Vec3 endPos, Vec2 endRot, long startTimeNanos) {}
+
 	public static final Identifier SMOOTH_AOTE_BEFORE_PHASE = SkyblockerMod.id("smooth_aote");
-	private static final Minecraft CLIENT = Minecraft.getInstance();
+	public static final Minecraft CLIENT = Minecraft.getInstance();
 
-	private static final long MAX_TELEPORT_TIME = 2500; //2.5 seconds
+	private static final long TELEPORT_TIMEOUT = 2500; //2.5 seconds
+	public static int logPackets = 0;
 
-	private static long startTime;
-	@Nullable
-	private static Vec3 startPos;
-	@Nullable
-	private static Vec3 cameraStartPos;
-	@Nullable
-	private static Vec3 teleportVector;
-	private static long lastPing;
-	private static long currentTeleportPing;
-	private static int teleportsAhead;
-	private static long lastTeleportTime;
-	public static boolean teleportDisabled;
+	public static Vec3 lastSentPos = null;
+
+	/// Refers to *player position*, not camera position!
+	@Nullable private static Vec3 teleportStartPos;
+	@Nullable private static Vec3 teleportEndPos;
+	@Nullable private static Vec2 teleportEndRot;
+	private static long teleportStartTime;
+
+	/// A teleport is in flight when we've sent a UseItem/UseItemOn packet that will trigger a teleport but haven't yet recieved a PlayerPositionPacket packet as confirmation
+	private static int teleportsInFlight;
+
+	public static ArrayList<BadPrediction> misses = new ArrayList<>();
+	public static Queue<Packet<?>> queue = new LinkedList<>();
 
 	@Init
 	public static void init() {
-		UseItemCallback.EVENT.register(SMOOTH_AOTE_BEFORE_PHASE, PredictiveSmoothAOTE::onItemInteract);
-		UseItemCallback.EVENT.addPhaseOrdering(SMOOTH_AOTE_BEFORE_PHASE, Event.DEFAULT_PHASE); // run this event first to check mana before it gets changed by the tracker
-		UseBlockCallback.EVENT.register(PredictiveSmoothAOTE::onBlockInteract);
+		ClientTickEvents.END_LEVEL_TICK.register(player -> {logPackets -= 1;});
+		LevelRenderExtractionCallback.EVENT.register(PredictiveSmoothAOTE::extractRendering);
 	}
 
 	/**
 	 * When a player receives a teleport packet finish a teleport
 	 */
-	public static void playerTeleported() {
+	public static void onTeleport() {
 		//the player has been teleported so 1 less teleport ahead
-		teleportsAhead = Math.max(0, teleportsAhead - 1);
-		//re-enable the animation if the player is teleported as this means they can teleport again. and reset timer for last teleport update
-		lastTeleportTime = System.currentTimeMillis();
-		teleportDisabled = false;
-
-		//if the server is in sync in number of teleports
-		if (teleportsAhead == 0) {
-			//see if the teleport has a small amount left to continue animating instead of jumping to the end
-			long timeLeft = (currentTeleportPing - (System.currentTimeMillis() - startTime));
-			if (timeLeft > 0 && timeLeft <= SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.maximumAddedLag) {
-				return;
+		if (teleportsInFlight == 0) {
+			say("RECIEVED TELEPORT BUT NO PENDING");
+		}
+		teleportsInFlight = Math.max(0, teleportsInFlight - 1);
+		if (teleportEndPos != null) {
+			if (teleportEndPos.distanceToSqr(CLIENT.player.position()) > 1e-8) {
+				say("BAD PREDICTION: delta=%s".formatted(teleportEndPos.subtract(CLIENT.player.position())));
+				misses.clear();
+				misses.add(new BadPrediction(teleportStartPos, teleportEndPos, CLIENT.player.position()));
 			}
-			//reset when player has reached the end of the teleports
-			startPos = null;
-			teleportVector = null;
-
 		}
-	}
-
-	/**
-	 * checks to see if a teleport device is using transmission tuner to increase the range
-	 *
-	 * @param customData the custom data of the teleport device
-	 * @param baseRange  the base range for the device without tuner
-	 * @return the range with tuner
-	 */
-	private static int extractTunedCustomData(CompoundTag customData, int baseRange) {
-		return customData != null && customData.contains("tuned_transmission") ? baseRange + customData.getIntOr("tuned_transmission", 0) : baseRange;
-	}
-
-	/**
-	 * When an item is right-clicked send off to calculate teleport with the clicked item
-	 *
-	 * @param playerEntity player
-	 * @param world        world
-	 * @param hand         held item
-	 * @return pass
-	 */
-	private static InteractionResult onItemInteract(Player playerEntity, Level world, InteractionHand hand) {
-		if (CLIENT.player == null) {
-			return null;
-		}
-		calculateTeleportUse(hand);
-		return InteractionResult.PASS;
-	}
-
-	/**
-	 * Allows shovel teleport items to be used when aiming at interactable blocks
-	 *
-	 * @param playerEntity   player
-	 * @param world          world
-	 * @param hand           hand item
-	 * @param blockHitResult target block
-	 * @return always pass
-	 */
-	private static InteractionResult onBlockInteract(Player playerEntity, Level world, InteractionHand hand, BlockHitResult blockHitResult) {
-		ItemStack itemStack = playerEntity.getItemInHand(hand);
-		if (isShovel(itemStack) && canShovelActOnBlock(world.getBlockState(blockHitResult.getBlockPos()).getBlock())) {
-			calculateTeleportUse(hand);
-		}
-		return InteractionResult.PASS;
+//		teleportStartPos = teleportEndPos = null;
 	}
 
 	private static boolean isShovel(ItemStack itemStack) {
@@ -169,161 +120,93 @@ public class PredictiveSmoothAOTE {
 	 * @param hand what the player is holding
 	 */
 
-	private static void calculateTeleportUse(InteractionHand hand) {
-		//stop checking if player does not exist
-		if (CLIENT.player == null || CLIENT.level == null) {
-			return;
-		}
+	public static void calculateTeleportUse(InteractionHand hand, @Nullable HitResult hitResult, float xRot, float yRot) {
+		if (CLIENT.player == null || CLIENT.level == null) return;
 
-		// make sure the predictive algorithm is selected
+		// Predictive algorithm must be selected
 		if (!SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.predictive) return;
+		if (CLIENT.options.getCameraType() != CameraType.FIRST_PERSON && !SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.thirdPerson) return;
 
-		//make sure it's not disabled
-		if (teleportDisabled) {
+		//make sure the player is in an area where teleporting is allowed
+		if (!TeleportUtils.canTeleportInLocation()) return;
+
+		if (SlayerManager.isFightingOwnedSlayer() && SlayerManager.isFightingSlayerType(SlayerType.TARANTULA) && SlayerManager.getBossFight().slayerTier.ordinal() >= 2) return;
+
+		if (hitResult instanceof BlockHitResult blockHitResult && TeleportUtils.consumesClick(CLIENT.level.getBlockState(blockHitResult.getBlockPos()).getBlock(), Utils.getLocation())) {
 			return;
 		}
 
-		// make sure the camera is not in 3rd person if disabled
-		if (CLIENT.options.getCameraType() != CameraType.FIRST_PERSON && !SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.thirdPerson) {
-			return;
-		}
-
-		//make sure the player is in an area teleporting is allowed not allowed in glacite mineshafts and floor 7 boss
-		if (!isAllowedLocation()) {
-			return;
-		}
-
-		//work out if the player is holding a teleporting item that is enabled and if so how far the item will take them
+		// Work out the type of teleport
 		ItemStack heldItem = CLIENT.player.getMainHandItem();
-		String itemId = heldItem.getSkyblockId();
-		CompoundTag customData = ItemUtils.getCustomData(heldItem);
+		UIAndVisualsConfig.SmoothAOTE config = SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE;
+		TeleportUtils.TeleportType teleport = TeleportUtils.TeleportType.get(
+				heldItem.getSkyblockId(),
+				ItemUtils.getCustomData(heldItem),
+				CLIENT.player.getLastSentInput().shift(),
+				config.enableWeirdTransmission,
+				config.enableInstantTransmission,
+				config.enableEtherTransmission,
+				config.enableSinrecallTransmission,
+				config.enableWitherImpact
+		);
+		if (teleport == null) return;
 
-		int distance = getItemDistance(itemId, customData);
-		if (distance == -1) {
-			return;
+		// Make sure the player has enough mana to do the teleport
+		if (!hasEnoughMana(heldItem, teleport)) return;
+
+		// Calculate start position and direction vector
+		/// There is a strange interaction here:
+		/// When you right click in the air with a shovel, normally the packet order looks like this:
+		/// UseItem (main hand) -> MovePlayer
+		/// (Irrelevant packets in between omitted for clarity)
+		/// MovePlayer (and its subclasses) are responsible for relaying player rotation to the server. Since UseItem
+		/// gets sent *before* MovePlayer, does this mean the server uses the *last* tick's rotation for the AOTV teleport?
+		/// No. Actually, UseItem contains fields yRot & xRot, which sends the player's most recent rotation.
+		/// HOWEVER, what happens when you right click on a *block*? The packet order looks like this:
+		/// UseItemOn (main hand) -> UseItem (main hand) -> MovePlayer
+		/// Now, it appears that Hypixel *also* triggers the teleport when receiving the UseItemOn packet.
+		/// (Apparently, they then ignore the subsequent UseItem packet.)
+		/// But UseItemOn *doesn't* contain the client's rotation! So the server will use an outdated rotation.
+		///
+		/// In summary, when you right click in the air, the server uses your up-to-date rotation to perform the teleport.
+		/// But if you right click on a block, the server uses the last tick's rotation.
+		final Vec3 look;
+		final Vec3 startPos;
+		if (teleportsInFlight == 0) {
+			look = CLIENT.player.calculateViewVector(xRot, yRot);
+			startPos = lastSentPos != null ? lastSentPos : new Vec3(CLIENT.player.xLast, CLIENT.player.yLast, CLIENT.player.zLast);
+		} else {
+			look = CLIENT.player.calculateViewVector(teleportEndRot.x, teleportEndRot.y);
+			startPos = teleportEndPos;
 		}
 
-		//make sure the player has enough mana to do the teleport
+		final Vec3 startEyePos = startPos.add(0, CLIENT.player.getEyeHeight(CLIENT.player.getPose()), 0);
+
+		if (isTargetingNPC(CLIENT.player, 4, startEyePos, look)) return;
+
+		BlockPos targetPos = teleport.raycast(CLIENT.level, look, startEyePos);
+		if (targetPos == null) return;
+
+		logPackets = 4;
+
+		teleportStartTime = System.currentTimeMillis();
+		teleportStartPos = CLIENT.player.position();
+		teleportEndPos = teleport.toPlayerPos(targetPos);
+		/// If initiating a new teleport, we use current rotation; otherwise use the stored one as we can't rotation mid flight
+		if (teleportsInFlight == 0) teleportEndRot = new Vec2(xRot, yRot);
+		teleportsInFlight += 1;
+	}
+
+	private static boolean hasEnoughMana(ItemStack heldItem, TeleportUtils.TeleportType teleport) {
 		List<ItemAbility> abilities = heldItem.skyblocker$getAbilities();
 		if (!abilities.isEmpty() && abilities.getFirst().manaCost().isPresent()) {
 			int manaCost = abilities.getFirst().manaCost().getAsInt();
-			int predictedMana = StatusBarTracker.getMana().value();
+			int predictedMana = StatusBarTracker.getMana().value() + StatusBarTracker.getMana().overflow();
 			if (predictedMana < manaCost) {
-				return;
+				return false;
 			}
 		}
-
-		//work out start pos of warp and set start time. if there is an active warp going on make the end of that the start of the next one
-		if (teleportsAhead == 0 || startPos == null || teleportVector == null) {
-			//start of teleport sequence
-			startPos = CLIENT.player.position().add(0, Utils.getEyeHeight(CLIENT.player), 0); // the eye poss should not be affected by crouching
-			cameraStartPos = RenderHelper.getCamera().position();
-			lastTeleportTime = System.currentTimeMillis();
-			// update the ping used for the teleport
-			currentTeleportPing = lastPing;
-		} else {
-			//add to the end of the teleport sequence
-			startPos = startPos.add(teleportVector);
-			//set the camera start pos to how far though the teleport the player is to make is smoother
-			cameraStartPos = getInterpolatedPos();
-			//update the ping used for this part of the teleport
-			currentTeleportPing = lastPing;
-		}
-
-		startTime = System.currentTimeMillis();
-
-		// calculate the vector the player will follow for the teleport
-		//get direction
-		float pitch = CLIENT.player.getXRot();
-		float yaw = CLIENT.player.getYRot();
-		Vec3 look = CLIENT.player.calculateViewVector(pitch, yaw);
-
-		//make sure the player is not talking to an npc. And if they are cancel the teleport
-		if (startPos == null) return;
-		if (isTargetingNPC(CLIENT.player, 4, startPos, look)) {
-			startPos = null;
-			teleportVector = null;
-			return;
-		}
-
-		//find target location depending on how far the item they are using takes them
-		teleportVector = raycast(distance, look, startPos, false);
-		if (teleportVector == null) {
-			startPos = null;
-			return;
-		}
-
-		//compensate for hypixel round to center of block (to x.5 y.(eye height - 1), z.5)
-		Vec3 predictedEnd = startPos.add(teleportVector);
-		Vec3 offsetVec = new Vec3(predictedEnd.x - roundToCenter(predictedEnd.x), predictedEnd.y - (Math.ceil(predictedEnd.y) + Utils.getEyeHeight(CLIENT.player) - 1), predictedEnd.z - roundToCenter(predictedEnd.z));
-		teleportVector = teleportVector.subtract(offsetVec);
-		//add 1 to teleports ahead
-		teleportsAhead += 1;
-	}
-
-	/**
-	 * work out if the player is holding a teleporting item that is enabled and if so how far the item will take them
-	 *
-	 * @param itemId     id of item to check
-	 * @param customData custom data of item to check
-	 * @return distance the item teleports or -1 if not valid
-	 */
-	protected static int getItemDistance(String itemId, CompoundTag customData) {
-		int distance;
-		switch (itemId) {
-			case "ASPECT_OF_THE_LEECH_1" -> {
-				if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.enableWeirdTransmission) {
-					distance = 3;
-					break;
-				}
-				return -1;
-
-			}
-			case "ASPECT_OF_THE_LEECH_2" -> {
-				if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.enableWeirdTransmission) {
-					distance = 4;
-					break;
-				}
-				return -1;
-			}
-			case "ASPECT_OF_THE_END", "ASPECT_OF_THE_VOID" -> {
-				if (CLIENT.options.keyShift.isDown() && customData.getIntOr("ethermerge", 0) == 1) {
-					if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.enableEtherTransmission) {
-						distance = extractTunedCustomData(customData, 57);
-						break;
-					}
-				} else if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.enableInstantTransmission) {
-					distance = extractTunedCustomData(customData, 8);
-					break;
-				}
-				return -1;
-			}
-			case "ETHERWARP_CONDUIT" -> {
-				if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.enableEtherTransmission) {
-					distance = extractTunedCustomData(customData, 57);
-					break;
-				}
-				return -1;
-			}
-			case "SINSEEKER_SCYTHE" -> {
-				if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.enableSinrecallTransmission) {
-					distance = extractTunedCustomData(customData, 4);
-					break;
-				}
-				return -1;
-			}
-			case "NECRON_BLADE", "ASTRAEA", "HYPERION", "SCYLLA", "VALKYRIE" -> {
-				if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.enableWitherImpact) {
-					distance = 10;
-					break;
-				}
-				return -1;
-			}
-			default -> {
-				return -1;
-			}
-		}
-		return distance;
+		return true;
 	}
 
 	/**
@@ -335,94 +218,24 @@ public class PredictiveSmoothAOTE {
 	 * @param look        players looking direction
 	 * @return if an NPC is targeted
 	 */
-	private static Boolean isTargetingNPC(Player player, double maxDistance, Vec3 startPos, Vec3 look) {
-		if (startPos == null) return false;
-		// Calculate end position for raycast
-		Vec3 endPos = startPos.add(look.scale(maxDistance));
+	private static boolean isTargetingNPC(Player player, double maxDistance, Vec3 startPos, Vec3 look) {
+		Entity entity = CLIENT.crosshairPickEntity;
+		if (entity == null) return false;
 
-		// First: Raycast for blocks (to check obstructions)
-		Level world = player.level();
-		ClipContext context = new ClipContext(startPos, endPos, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
-		double blockHitDistance = world.clip(context).getLocation().distanceTo(startPos);
-
-		// Second: Raycast for entities (within valid range)
-		AABB searchBox = player
-				.getBoundingBox()
-				.expandTowards(look.scale(maxDistance)) // Extend box in look direction
-				.inflate(1); // Margin for safety
-
-		EntityHitResult entityHit = ProjectileUtil.getEntityHitResult(player, startPos, endPos, searchBox, entity ->
-						!entity.isSpectator() && entity != player,
-				Mth.square(blockHitDistance) // Max distance (squared)
-		);
-		//if not looking at any entity return false
-		if (entityHit == null) return false;
-
-		//look for armorstand saying click to see if it's A npc or not
-		Entity entity = entityHit.getEntity();
-		List<ArmorStand> armorStands = MobGlow.getArmorStands(entity);
-
-		return armorStands.stream().anyMatch(armorStand -> armorStand.getName().getString().equals("CLICK"));
-	}
-
-
-	/**
-	 * Rounds a value to the nearest 0.5
-	 *
-	 * @param input number to round
-	 * @return rounded number
-	 */
-	private static double roundToCenter(double input) {
-		return Math.round(input - 0.5) + 0.5;
-	}
-
-	/**
-	 * Works out if the players location lets them use teleportation or not
-	 *
-	 * @return if the player should be allowed to teleport
-	 */
-	private static boolean isAllowedLocation() {
-		//check mines shafts
-		if (Utils.getMap().equals("Mineshaft")) {
-			return false;
-		} else if (Utils.getArea() == Area.CrystalHollows.JUNGLE_TEMPLE) { //do not allow in jungle temple
-			return false;
-		} else if (Utils.getLocation() == Location.PRIVATE_ISLAND && Utils.getArea() != Area.PrivateIsland.YOUR_ISLAND) { //do not allow it when visiting
-			return false;
-		} else if (Utils.getArea() == Area.CrimsonIsle.DOJO) { //do not allow in dojo
-			return false;
-		} else if (Utils.isInDungeons()) { //check places in dungeons where you can't teleport
-			if (DungeonManager.isInBoss() && DungeonManager.getBoss() == DungeonBoss.MAXOR) {
-				return false;
-			}
-			//make sure the player is in a room then check for disallowed rooms
-			if (!DungeonManager.isCurrentRoomMatched()) {
-				return true;
-			}
-			//does not work in boulder room
-			if (DungeonManager.getCurrentRoom().getName().equals("boxes-room")) {
-				return false;
-			}
-			//does not work in teleport maze room
-			if (DungeonManager.getCurrentRoom().getName().equals("teleport-pad-room")) {
-				return false;
-			}
-			//does not work in trap room
-			if (DungeonManager.getCurrentRoom().getName().startsWith("trap")) {
-				return false;
-			}
-		}
-
-		return true;
+		// Check for armor stand with "CLICK" nametag, signifying an NPC
+		return MobGlow.getArmorStands(entity)
+				.stream()
+				.anyMatch(armorStand -> armorStand.getName().getString().equals("CLICK"));
 	}
 
 	/**
 	 * Custom raycast for teleporting checks for blocks for each 1 block forward in teleport. (very similar to Hypixel's method)
+	 * TODO: Fix this
 	 *
 	 * @param distance maximum distance
-	 * @return teleport vector
+	 * @return teleport offset vector
 	 */
-	protected static Vec3 raycast(int distance, Vec3 direction, Vec3 startPos, boolean isEtherwarp) {
+	protected static @Nullable Vec3 raycastTransmission(int distance, Vec3 direction, Vec3 startPos) {
 		if (CLIENT.level == null || direction == null || startPos == null) {
 			return null;
 		}
@@ -442,17 +255,16 @@ public class PredictiveSmoothAOTE {
 			BlockPos checkPos = BlockPos.containing(pos);
 
 			//check if there is a block at the check location
-			if (!canTeleportThrough(checkPos)) {
-				if (!isEtherwarp && offset == 0) {
+			if (!canTeleportThroughWithTransmission(checkPos)) {
+				if (offset == 0) {
 					// no teleport can happen
 					return null;
 				}
-				if (isEtherwarp) return direction.scale(offset - 1).add(direction);
 				return direction.scale(offset - 1);
 			}
 
 			//check if the block at head height is free
-			if (!canTeleportThrough(checkPos.above()) && !isEtherwarp) {
+			if (!canTeleportThroughWithTransmission(checkPos.above())) {
 				if (offset == 0) {
 					//cancel the check if starting height is too low
 					Vec3 justAhead = startPos.add(direction.scale(0.2));
@@ -494,13 +306,14 @@ public class PredictiveSmoothAOTE {
 	}
 
 	/**
-	 * Checks to see if a block is in the allowed list to teleport though
-	 * Air, non-collidable blocks, carpets, pots, 3 or less snow layers
+	 * Checks to see if a block is in the allowed list to teleport though.
+	 * Air, non-collidable blocks, carpets, pots, 3 or less snow layers.
+	 * This is probably different from etherwarp.
 	 *
 	 * @param blockPos block location
 	 * @return if a block location can be teleported though
 	 */
-	private static Boolean canTeleportThrough(BlockPos blockPos) {
+	private static Boolean canTeleportThroughWithTransmission(BlockPos blockPos) {
 		if (CLIENT.level == null) {
 			return false;
 		}
@@ -540,49 +353,68 @@ public class PredictiveSmoothAOTE {
 	 * @return the camera position for the interpolated pos
 	 */
 	@Nullable
-	public static Vec3 getInterpolatedPos() {
-		if (CLIENT.player == null || teleportVector == null || startPos == null || teleportDisabled) {
+	public static Vec3 getInterpolatedPos(Vec3 originalPos, double eyeHeight) {
+		if (CLIENT.player == null || teleportStartPos == null || teleportEndPos == null) {
 			return null;
 		}
-		long gap = System.currentTimeMillis() - startTime;
-		//make sure the player is actually getting teleported if not disable teleporting until they are teleported again
-		if (System.currentTimeMillis() - lastTeleportTime > Math.min(Math.max(lastPing, currentTeleportPing) + ((long) SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.maximumAddedLag * teleportsAhead), MAX_TELEPORT_TIME)) {
-			teleportDisabled = true;
-			startPos = null;
-			teleportVector = null;
-			teleportsAhead = 0;
-			return null;
-		}
-		long estimatedTeleportTime = Math.min(currentTeleportPing, MAX_TELEPORT_TIME);
-		double percentage = Math.clamp((double) (gap) / estimatedTeleportTime, 0, 1); // Sanity clamp
+		long currentTime = System.currentTimeMillis();
+		long gap = currentTime - teleportStartTime;
+
+		double teleportDuration = 100;
+		double percentage = Math.clamp((double) (gap) / teleportDuration, 0, 1);
 
 		//if the animation is done and the player has finished the teleport server side finish the teleport
-		if (teleportsAhead == 0 && gap >= estimatedTeleportTime + SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.maximumAddedLag) {
-			//reset when player has reached the end of the teleports
-			startPos = null;
-			teleportVector = null;
-			return null;
+		if (teleportsInFlight == 0) {
+			if (gap >= teleportDuration) {
+				//reset when player has reached the end of the teleports
+				teleportStartPos = null;
+				teleportEndPos = null;
+				return null;
+			} else {
+				teleportEndPos = originalPos;
+			}
 		}
 
-		return cameraStartPos.add(teleportVector.scale(percentage));
+		return teleportEndPos.add(0, eyeHeight, 0);
+//		return teleportStartPos.add(teleportEndPos.subtract(teleportStartPos).scale(easeInOutQuad(percentage))).add(0, eyeHeight, 0);
+	}
+
+	public static double easeInOutQuad(double t) {
+		if (t < 0.5) {
+			return 2.0 * t * t;
+		} else {
+			return 1.0 - 2.0 * (1.0 - t) * (1.0 - t);
+		}
 	}
 
 	/**
 	 * Get the difference between the camara and the actual player position. Then adds this to interpolated camara position
+	 *
 	 * @return Interpolated player position
 	 */
 	@Nullable
 	public static Vec3 getInterpolatedPlayerPos() {
-		if (startPos == null || CLIENT.player == null || cameraStartPos == null) return null;
-		Vec3 diff = startPos.subtract(0, Utils.getEyeHeight(CLIENT.player), 0).subtract(cameraStartPos);
-		Vec3 camara = getInterpolatedPos();
-		if (camara == null) return null;
-		return camara.add(diff);
+		return null;
 	}
 
-	public static void updatePing(long ping) {
-		lastPing = ping;
+	public static void say(String string) {
+		CLIENT.player.sendSystemMessage(Component.nullToEmpty(string));
 	}
 
+	private record BadPrediction(Vec3 start, Vec3 end, Vec3 actual) {}
 
+	private static float[] red = new float[]{0.7f, 0.2f, 0.2f};
+	private static float[] green = new float[]{0.2f, 0.7f, 0.2f};
+	private static float[] purple = new float[]{0.8f, 0.2f, 0.8f};
+
+	private static void extractRendering(PrimitiveCollector collector) {
+		misses.forEach(miss -> {
+			collector.submitFilledBox(AABB.ofSize(miss.start.add(0, 1.5 / 2.0, 0), 0.6, 1.5, 0.6), purple, 0.3f, false);
+			collector.submitFilledBox(AABB.ofSize(miss.end.add(0, 1.5 / 2.0, 0), 0.6, 1.5, 0.6), red, 0.3f, false);
+			collector.submitFilledBox(AABB.ofSize(miss.actual.add(0, 1.5 / 2.0, 0), 0.6, 1.5, 0.6), green, 0.3f, false);
+			collector.submitLinesFromPoints(new Vec3[]{miss.start.add(0, 1.27, 0), miss.end.add(0, 1.27, 0)}, red, 1, 1, false);
+			collector.submitLinesFromPoints(new Vec3[]{miss.start.add(0, 1.27, 0), miss.actual.add(0, 1.27, 0)}, green, 1, 1, false);
+		});
+
+	}
 }

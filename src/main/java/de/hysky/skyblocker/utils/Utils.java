@@ -661,8 +661,8 @@ public class Utils {
 	 * @return offset from players pos to their eyes
 	 */
 	public static float getEyeHeight(Player player) {
-		if (!player.isShiftKeyDown()) return 1.62f;
-		return 1.27f;
+		if (player.isCrouching()) return 1.27f;
+		return 1.62f;
 	}
 
 	/**

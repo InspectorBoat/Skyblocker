@@ -76,3 +76,16 @@ inject-interface	net/minecraft/client/gui/screens/inventory/InventoryScreen	de/h
 inject-interface	net/minecraft/client/renderer/LevelRenderer	de/hysky/skyblocker/injected/EntityRenderMarker
 inject-interface	net/minecraft/client/renderer/feature/ItemFeatureRenderer$Submit	de/hysky/skyblocker/injected/CustomGlowState
 inject-interface	net/minecraft/client/renderer/rendertype/RenderType	de/hysky/skyblocker/injected/GlowRenderTypeHolder
+
+# Collision context
+accessible field net/minecraft/world/level/ClipContext collisionContext Lnet/minecraft/world/phys/shapes/CollisionContext;
+
+# LocalPlayer
+accessible field net/minecraft/client/player/LocalPlayer xRotLast F
+accessible field net/minecraft/client/player/LocalPlayer yRotLast F
+accessible field net/minecraft/client/player/LocalPlayer xLast D
+accessible field net/minecraft/client/player/LocalPlayer yLast D
+accessible field net/minecraft/client/player/LocalPlayer zLast D
+
+accessible field net/minecraft/world/level/block/TrapDoorBlock type Lnet/minecraft/world/level/block/state/properties/BlockSetType;
+accessible field net/minecraft/world/level/block/LayeredCauldronBlock precipitationType Lnet/minecraft/world/level/biome/Biome$Precipitation;

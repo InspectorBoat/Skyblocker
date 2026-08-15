@@ -9,7 +9,7 @@ import de.hysky.skyblocker.skyblock.entity.MobBoundingBoxes;
 import de.hysky.skyblocker.skyblock.entity.MobGlow;
 import de.hysky.skyblocker.skyblock.slayers.SlayerManager;
 import de.hysky.skyblocker.skyblock.teleport.PredictiveSmoothAOTE;
-import de.hysky.skyblocker.skyblock.teleport.ResponsiveSmoothAOTE;
+import de.hysky.skyblocker.skyblock.teleport.ReactiveSmoothAOTE;
 import de.hysky.skyblocker.utils.Boxes;
 import de.hysky.skyblocker.utils.ColorUtils;
 import net.minecraft.client.Minecraft;
@@ -74,7 +74,7 @@ public class EntityRendererMixin {
 				pos = PredictiveSmoothAOTE.getInterpolatedPlayerPos();
 
 			} else {
-				pos = ResponsiveSmoothAOTE.getInterpolatedPlayerPos(partialTicks);
+				pos = ReactiveSmoothAOTE.getInterpolatedPlayerPos(partialTicks);
 			}
 			if (pos != null)
 			{
