@@ -69,15 +69,10 @@ public class EntityRendererMixin {
 		Minecraft client = Minecraft.getInstance();
 
 		if (entity == client.player && !client.options.getCameraType().isFirstPerson()) {
-			Vec3 pos;
-			if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.predictive) {
-				pos = PredictiveSmoothAOTE.getInterpolatedPlayerPos();
-
-			} else {
-				pos = ReactiveSmoothAOTE.getInterpolatedPlayerPos(partialTicks);
-			}
-			if (pos != null)
-			{
+			final Vec3 pos = SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.predictive ?
+					PredictiveSmoothAOTE.getVisualPlayerPos() :
+					ReactiveSmoothAOTE.getVisualPlayerPos(partialTicks);
+			if (pos != null) {
 				state.x = pos.x;
 				state.y = pos.y;
 				state.z = pos.z;

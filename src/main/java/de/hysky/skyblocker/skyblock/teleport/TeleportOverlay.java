@@ -52,7 +52,7 @@ public class TeleportOverlay {
 		BlockPos target = teleport.raycast(client.level, look, startPos);
 		if (target == null) return;
 
-		if (teleport instanceof TeleportType.Transmission || !SkyblockerConfigManager.get().uiAndVisuals.teleportOverlay.showWhenInAir && client.level.getBlockState(target).isAir()) return;
+		if (teleport instanceof TeleportType.Transmission transmission && !transmission.isValid(client.player.position() , startPos, target)) return;
 
 		collector.submitFilledBox(target, colorComponents, colorComponents[3], false);
 	}

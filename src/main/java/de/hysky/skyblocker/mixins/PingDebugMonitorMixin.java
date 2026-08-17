@@ -1,6 +1,7 @@
 package de.hysky.skyblocker.mixins;
 
 import de.hysky.skyblocker.skyblock.crimson.dojo.DojoManager;
+import de.hysky.skyblocker.skyblock.teleport.PredictiveSmoothAOTE;
 import de.hysky.skyblocker.utils.Utils;
 import net.minecraft.client.multiplayer.PingDebugMonitor;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,7 +16,7 @@ public class PingDebugMonitorMixin {
 		if (Utils.isInCrimson()) {
 			DojoManager.onPingResult(ping);
 		}
-//		PredictiveSmoothAOTE.updatePing(ping);
+		PredictiveSmoothAOTE.updatePing(ping);
 
 		return ping;
 	}

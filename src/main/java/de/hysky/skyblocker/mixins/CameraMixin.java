@@ -37,12 +37,24 @@ public abstract class CameraMixin {
 		double eyeHeight = Mth.lerp(partialTicks, this.eyeHeightOld, this.eyeHeight);
 		Vec3 pos;
 		if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.predictive) {
-			pos = PredictiveSmoothAOTE.getInterpolatedPos(originalPos, eyeHeight);
+			pos = PredictiveSmoothAOTE.getCameraPos(originalPos, eyeHeight);
 		} else {
 			pos = ReactiveSmoothAOTE.getInterpolatedPos(originalPos);
 		}
 		if (pos != null) setPosition(pos);
-		else setPosition(originalPos.add(0, eyeHeight, 0));
+		else setPosition(originalX, originalY, originalZ);
+	}
+
+	@Redirect(method = "alignWithEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setRotation(FF)V"))
+	private void overrideRotation(Camera instance, float yRot, float xRot, @Local(argsOnly = true) float partialTicks) {
+		if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.predictive) {
+			var newRot = PredictiveSmoothAOTE.getCameraRot();
+			if (newRot != null) {
+				setRotation(newRot.y, newRot.x);
+				return;
+			}
+		}
+		setRotation(yRot, xRot);
 	}
 
 	@Shadow
@@ -51,5 +63,11 @@ public abstract class CameraMixin {
 	private float eyeHeight;
 
 	@Shadow
-	protected abstract void setPosition(Vec3 pos);
+	protected abstract void setPosition(Vec3 position);
+
+	@Shadow
+	protected abstract void setPosition(double x, double y, double z);
+
+	@Shadow
+	protected abstract void setRotation(float yRot, float xRot);
 }

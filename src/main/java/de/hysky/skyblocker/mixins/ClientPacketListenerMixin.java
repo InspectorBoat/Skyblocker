@@ -52,6 +52,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -103,17 +104,19 @@ public abstract class ClientPacketListenerMixin extends ClientCommonPacketListen
 	}
 
 	@Inject(method = "handleMovePlayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/network/PacketProcessor;)V", shift = At.Shift.AFTER))
-	private void skyblocker$beforeTeleport(ClientboundPlayerPositionPacket packet, CallbackInfo ci, @Share("playerBeforeTeleportBlockPos") LocalRef<BlockPos> beforeTeleport) {
-		beforeTeleport.set(minecraft.player.blockPosition().immutable());
+	private void skyblocker$beforeTeleport(ClientboundPlayerPositionPacket packet, CallbackInfo ci, @Share("playerPosBeforeTeleport") LocalRef<Vec3> before) {
+		before.set(minecraft.player.position());
 		ReactiveSmoothAOTE.playerGoingToTeleport();
 	}
 
 	@Inject(method = "handleMovePlayer", at = @At(value = "RETURN"))
-	private void skyblocker$onTeleport(ClientboundPlayerPositionPacket packet, CallbackInfo ci, @Share("playerBeforeTeleportBlockPos") LocalRef<BlockPos> beforeTeleport) {
-		//player has been teleported by the server, tell the smooth AOTE this
-		PredictiveSmoothAOTE.onTeleport();
+	private void skyblocker$onTeleport(ClientboundPlayerPositionPacket packet, CallbackInfo ci, @Share("playerPosBeforeTeleport") LocalRef<Vec3> before) {
+		Minecraft.getInstance().player.yBob = Minecraft.getInstance().player.yBob - 360 * Math.round((Minecraft.getInstance().player.yBob - Minecraft.getInstance().player.getYRot()) / 360);
 
-		TeleportMaze.INSTANCE.onTeleport(minecraft, beforeTeleport.get(), minecraft.player.blockPosition().immutable());
+		//player has been teleported by the server, tell the smooth AOTE this
+		PredictiveSmoothAOTE.onTeleport(packet, before.get(), minecraft.player.position());
+
+		TeleportMaze.INSTANCE.onTeleport(minecraft, BlockPos.containing(before.get()), minecraft.player.blockPosition().immutable());
 	}
 
 	@Inject(method = "handleTakeItemEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/item/ItemEntity;getItem()Lnet/minecraft/world/item/ItemStack;"))

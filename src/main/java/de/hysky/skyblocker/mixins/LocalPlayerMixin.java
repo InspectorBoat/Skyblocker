@@ -33,6 +33,9 @@ public abstract class LocalPlayerMixin extends AbstractClientPlayer {
 	@Final
 	protected Minecraft minecraft;
 
+	@Shadow
+	public float yBob;
+
 	public LocalPlayerMixin(ClientLevel world, GameProfile profile) {
 		super(world, profile);
 	}

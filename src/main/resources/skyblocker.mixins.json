@@ -104,5 +104,8 @@
   },
   "mixinextras": {
     "minVersion": "0.5.0"
-	}
+  },
+  "mixins": [
+    "ConnectionMixin"
+  ]
 }

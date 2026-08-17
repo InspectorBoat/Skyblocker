@@ -77,7 +77,7 @@ public class ReactiveSmoothAOTE {
 	}
 
 	@Nullable
-	public static Vec3 getInterpolatedPlayerPos(float partialTicks) {
+	public static Vec3 getVisualPlayerPos(float partialTicks) {
 		if (CLIENT.player == null || cameraStartPos == null) return null;
 		Vec3 diff = CLIENT.player.getPosition(partialTicks).subtract(cameraStartPos);
 		Vec3 camara = getInterpolatedPos(cameraStartPos);
