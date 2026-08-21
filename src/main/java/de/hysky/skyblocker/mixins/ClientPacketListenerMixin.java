@@ -30,6 +30,7 @@ import de.hysky.skyblocker.skyblock.slayers.boss.voidgloom.BeaconHighlighter;
 import de.hysky.skyblocker.skyblock.tabhud.util.PlayerListManager;
 import de.hysky.skyblocker.skyblock.teleport.PredictiveSmoothAOTE;
 import de.hysky.skyblocker.skyblock.teleport.ReactiveSmoothAOTE;
+import de.hysky.skyblocker.skyblock.teleport.TeleportLogger;
 import de.hysky.skyblocker.utils.Utils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientCommonPacketListenerImpl;
@@ -115,6 +116,7 @@ public abstract class ClientPacketListenerMixin extends ClientCommonPacketListen
 
 		//player has been teleported by the server, tell the smooth AOTE this
 		PredictiveSmoothAOTE.onTeleport(packet, before.get(), minecraft.player.position());
+		TeleportLogger.onTeleport(packet, before.get(), minecraft.player.position());
 
 		TeleportMaze.INSTANCE.onTeleport(minecraft, BlockPos.containing(before.get()), minecraft.player.blockPosition().immutable());
 	}

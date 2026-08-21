@@ -20,6 +20,7 @@ import de.hysky.skyblocker.skyblock.chat.filters.MoltenWaveFilter;
 import de.hysky.skyblocker.skyblock.chat.filters.ShowOffFilter;
 import de.hysky.skyblocker.skyblock.chat.filters.SkyMallFilter;
 import de.hysky.skyblocker.skyblock.chat.filters.SpiritSceptreFilter;
+import de.hysky.skyblocker.skyblock.chat.filters.WarpFilter;
 import de.hysky.skyblocker.skyblock.dwarven.fossil.FossilMuncher;
 import de.hysky.skyblocker.skyblock.foraging.galatea.SweepDetailsListener;
 import de.hysky.skyblocker.skyblock.slayers.features.SlayerMinibossSpawnFilter;
@@ -91,6 +92,7 @@ public interface ChatMessageListener {
 				new DungeonBreakerFilter(),
 				new SlayerMinibossSpawnFilter(),
 				new HellionShieldFilter(),
+				new WarpFilter(),
 		};
 
 		// Register all listeners to EVENT

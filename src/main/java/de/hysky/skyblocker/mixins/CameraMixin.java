@@ -1,5 +1,7 @@
 package de.hysky.skyblocker.mixins;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.skyblock.teleport.PredictiveSmoothAOTE;
@@ -10,7 +12,6 @@ import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(Camera.class)
 public abstract class CameraMixin {
@@ -31,22 +32,22 @@ public abstract class CameraMixin {
 //		return original;
 //	}
 
-	@Redirect(method = "alignWithEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"))
-	private void overridePosition(Camera camera, double originalX, double originalY, double originalZ, @Local(argsOnly = true) float partialTicks) {
-		final Vec3 originalPos = new Vec3(originalX, originalY - eyeHeight, originalZ);
+	@WrapOperation(method = "alignWithEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"))
+	private void overridePosition(Camera instance, double x, double y, double z, Operation<Void> original, @Local(argsOnly = true) float partialTicks) {
+		final Vec3 originalPos = new Vec3(x, x - eyeHeight, x);
 		double eyeHeight = Mth.lerp(partialTicks, this.eyeHeightOld, this.eyeHeight);
 		Vec3 pos;
 		if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.predictive) {
-			pos = PredictiveSmoothAOTE.getCameraPos(originalPos, eyeHeight);
+			pos = PredictiveSmoothAOTE.getCameraPos(eyeHeight);
 		} else {
 			pos = ReactiveSmoothAOTE.getInterpolatedPos(originalPos);
 		}
 		if (pos != null) setPosition(pos);
-		else setPosition(originalX, originalY, originalZ);
+		else original.call(instance, x, y, z);
 	}
 
-	@Redirect(method = "alignWithEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setRotation(FF)V"))
-	private void overrideRotation(Camera instance, float yRot, float xRot, @Local(argsOnly = true) float partialTicks) {
+	@WrapOperation(method = "alignWithEntity", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setRotation(FF)V"))
+	private void overrideRotation(Camera instance, float yRot, float xRot, Operation<Void> original) {
 		if (SkyblockerConfigManager.get().uiAndVisuals.smoothAOTE.predictive) {
 			var newRot = PredictiveSmoothAOTE.getCameraRot();
 			if (newRot != null) {
@@ -54,7 +55,7 @@ public abstract class CameraMixin {
 				return;
 			}
 		}
-		setRotation(yRot, xRot);
+		original.call(instance, yRot, xRot);
 	}
 
 	@Shadow

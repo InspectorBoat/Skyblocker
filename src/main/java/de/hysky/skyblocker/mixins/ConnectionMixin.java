@@ -21,6 +21,7 @@ import java.util.Queue;
 import static de.hysky.skyblocker.skyblock.teleport.PredictiveSmoothAOTE.predictTeleport;
 import static de.hysky.skyblocker.skyblock.teleport.PredictiveSmoothAOTE.lastSentPos;
 import static de.hysky.skyblocker.skyblock.teleport.PredictiveSmoothAOTE.lastSentRot;
+import static de.hysky.skyblocker.skyblock.teleport.TeleportLogger.onClick;
 
 @Mixin(Connection.class)
 public class ConnectionMixin {
@@ -49,6 +50,7 @@ public class ConnectionMixin {
 			case ServerboundUseItemOnPacket useItemOnPacket -> {
 				if (useItemOnPacket.getHand() == InteractionHand.OFF_HAND) return;
 				predictTeleport(useItemOnPacket.getHitResult(), lastSentRot != null ? lastSentRot.x : PredictiveSmoothAOTE.CLIENT.player.xRotLast, lastSentRot != null ? lastSentRot.y : PredictiveSmoothAOTE.CLIENT.player.yRotLast, true);
+				onClick(lastSentRot != null ? lastSentRot.x : PredictiveSmoothAOTE.CLIENT.player.xRotLast, lastSentRot != null ? lastSentRot.y : PredictiveSmoothAOTE.CLIENT.player.yRotLast);
 				ignoreNextUseItemPacket = true;
 				queue.add(packet);
 				if (queue.size() > 10) queue.remove();
@@ -62,6 +64,7 @@ public class ConnectionMixin {
 				queue.add(packet);
 				if (queue.size() > 10) queue.remove();
 				predictTeleport(null, useItemPacket.getXRot(), useItemPacket.getYRot(), false);
+				onClick(useItemPacket.getXRot(), useItemPacket.getYRot());
 			}
 			case ServerboundMovePlayerPacket movePlayerPacket -> {
 				if (movePlayerPacket.hasPosition()) {
@@ -69,9 +72,6 @@ public class ConnectionMixin {
 				}
 				if (movePlayerPacket.hasRotation()) {
 					lastSentRot = new Vec2(movePlayerPacket.getXRot(0), movePlayerPacket.getYRot(0));
-				}
-				if (PredictiveSmoothAOTE.logPackets >= 0) {
-//					PredictiveSmoothAOTE.say("ROT: %s %s %s %s".formatted(PredictiveSmoothAOTE.logPackets, movePlayerPacket.type(), movePlayerPacket.getXRot(0), movePlayerPacket.getYRot(0)));
 				}
 				queue.add(packet);
 				if (queue.size() > 10) queue.remove();

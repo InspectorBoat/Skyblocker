@@ -3,12 +3,14 @@ package de.hysky.skyblocker.mixins;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import de.hysky.skyblocker.skyblock.garden.LowerSensitivity;
 import de.hysky.skyblocker.skyblock.storageoverlay.StorageOverlayScreen;
+import de.hysky.skyblocker.skyblock.teleport.MoveUtils;
 import de.hysky.skyblocker.utils.Utils;
 import de.hysky.skyblocker.utils.render.gui.ServerTransferHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.gui.screens.LevelLoadingScreen;
 import net.minecraft.client.gui.screens.multiplayer.ServerReconfigScreen;
+import net.minecraft.client.player.LocalPlayer;
 import org.joml.Vector2dc;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Final;
@@ -29,6 +31,26 @@ public class MouseHandlerMixin {
 
 	@Shadow
 	private double ypos;
+
+	@Inject(method = "turnPlayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;turn(DD)V", shift = At.Shift.AFTER))
+	public void lockRot(double mousea, CallbackInfo ci) {
+		if (MoveUtils.sequence.getCurrentAction() instanceof MoveUtils.Action.Look look && this.minecraft.gui.screen() == null && this.minecraft.gui.overlay() == null) {
+			LocalPlayer player = Minecraft.getInstance().player;
+
+			if (look.yaw() instanceof Float yaw) {
+				float yRotInitial = player.getYRot();
+				player.setYRot(yaw);
+				player.yRotO += yaw - yRotInitial;
+			}
+			if (look.pitch() instanceof Float pitch) {
+				float xRotInitial = player.getXRot();
+				player.setXRot(pitch);
+				player.xRotO += pitch - xRotInitial;
+			}
+
+			MoveUtils.sequence.playerRotRecieved();
+		}
+	}
 
 	@ModifyExpressionValue(method = "turnPlayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/OptionInstance;get()Ljava/lang/Object;", ordinal = 0))
 	public Object skyblocker$gardenMouseLock(Object original) {

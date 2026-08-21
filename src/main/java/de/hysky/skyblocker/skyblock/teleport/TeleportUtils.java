@@ -1,12 +1,17 @@
 package de.hysky.skyblocker.skyblock.teleport;
 
+import de.hysky.skyblocker.skyblock.StatusBarTracker;
 import de.hysky.skyblocker.skyblock.dungeon.DungeonBoss;
 import de.hysky.skyblocker.skyblock.dungeon.secrets.DungeonManager;
+import de.hysky.skyblocker.skyblock.entity.MobGlow;
 import de.hysky.skyblocker.utils.Area;
+import de.hysky.skyblocker.utils.ItemAbility;
 import de.hysky.skyblocker.utils.Location;
 import de.hysky.skyblocker.utils.Utils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
@@ -52,17 +57,15 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
+
 public class TeleportUtils {
-	/**
-	 * @return if the player is allowed to teleport
-	 */
 	public static boolean canTeleportInLocation() {
 		if (Utils.getMap().equals("Mineshaft")) { // Glacite Mineshafts
 			return false;
@@ -90,7 +93,29 @@ public class TeleportUtils {
 		return true;
 	}
 
-	@Nullable
+	/// Checks if the player is targeting an entity with a CLICK tag, suggesting it has an interaction that will block the teleport
+	static boolean isTargetingNPC() {
+		Entity entity = PredictiveSmoothAOTE.CLIENT.crosshairPickEntity;
+		if (entity == null) return false;
+
+		// Check for armor stand with "CLICK" nametag, signifying an NPC
+		return MobGlow.getArmorStands(entity)
+				.stream()
+				.anyMatch(armorStand -> armorStand.getName().getString().equals("CLICK"));
+	}
+
+	static boolean hasEnoughMana(ItemStack heldItem, TeleportType teleport) {
+		List<ItemAbility> abilities = heldItem.skyblocker$getAbilities();
+		if (!abilities.isEmpty() && abilities.getFirst().manaCost().isPresent()) {
+			int manaCost = abilities.getFirst().manaCost().getAsInt();
+			int predictedMana = StatusBarTracker.getMana().value() + StatusBarTracker.getMana().overflow();
+			if (predictedMana < manaCost) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	public sealed interface TeleportType {
 		/**
 		 * @return The calculated absolute target location.
@@ -102,6 +127,8 @@ public class TeleportUtils {
 		 * @return the exact ending player position
 		 */
 		Vec3 toPlayerPos(BlockPos target);
+
+		int distance();
 
 		record Transmission(int distance) implements TeleportType {
 			/**
@@ -122,7 +149,7 @@ public class TeleportUtils {
 			}
 
 			private @Nullable BlockPos getBlockPos(Level level, Vec3 direction, Vec3 startPos) {
-				PredictiveSmoothAOTE.boxes.clear();
+				PredictiveSmoothAOTE.steps.clear();
 				//based on which way the ray is going get the needed vector for checking diagonals
 				BlockPos xDiagonalOffset = direction.x() > 0 ? new BlockPos(1, 0, 0) : new BlockPos(-1, 0, 0);
 				BlockPos zDiagonalOffset = direction.z() > 0 ? new BlockPos(0, 0, 1) : new BlockPos(0, 0, -1);
@@ -134,7 +161,7 @@ public class TeleportUtils {
 				for (double offset = 0; offset <= distance; offset++) {
 					Vec3 pos = startPos.add(direction.scale(offset));
 					BlockPos blockPos = BlockPos.containing(pos);
-					if (offset > 0) PredictiveSmoothAOTE.boxes.add(pos);
+					PredictiveSmoothAOTE.steps.add(pos);
 
 					// check if there is a block is occupied
 					if (!passable(level, blockPos)) {
@@ -281,10 +308,10 @@ public class TeleportUtils {
 			case LayeredCauldronBlock layeredCauldron -> layeredCauldron.precipitationType == Biome.Precipitation.RAIN;
 
 			case DispenserBlock _, LeverBlock _, FenceGateBlock _,
-				 BrewingStandBlock _, HopperBlock _, CraftingTableBlock _,
-				 ChestBlock _, EnderChestBlock _, AnvilBlock _,
-				 EnchantingTableBlock _, CauldronBlock _, FurnaceBlock _,
-				 AzaleaBlock _ -> true;
+				BrewingStandBlock _, HopperBlock _, CraftingTableBlock _,
+				ChestBlock _, EnderChestBlock _, AnvilBlock _,
+				EnchantingTableBlock _, CauldronBlock _, FurnaceBlock _,
+				AzaleaBlock _ -> true;
 			default -> false;
 		};
 	}
@@ -304,11 +331,11 @@ public class TeleportUtils {
 		public VoxelShape getBlockShape(final BlockState blockState, final BlockGetter level, final BlockPos pos) {
 			return switch (blockState.getBlock()) {
 				case LadderBlock _, AbstractSkullBlock _, CocoaBlock _,
-					 FlowerPotBlock _, DiodeBlock _, CandleBlock _ -> Shapes.empty();
+					FlowerPotBlock _, DiodeBlock _, CandleBlock _ -> Shapes.empty();
 
 				case SignBlock _, ScaffoldingBlock _, SnowLayerBlock _,
-					 BasePressurePlateBlock _, AbstractBannerBlock _, TrapDoorBlock _,
-					 TripWireHookBlock _, FenceGateBlock _ -> Shapes.block();
+					BasePressurePlateBlock _, AbstractBannerBlock _, TrapDoorBlock _,
+					TripWireHookBlock _, FenceGateBlock _ -> Shapes.block();
 
 				default -> blockState.getCollisionShape(level, pos, this.collisionContext).isEmpty() ? Shapes.empty() : Shapes.block();
 			};

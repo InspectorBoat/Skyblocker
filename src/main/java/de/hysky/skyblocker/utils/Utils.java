@@ -42,6 +42,7 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.Util;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.PlayerTeam;
@@ -675,5 +676,15 @@ public class Utils {
 			LOGGER.error("!".repeat(50));
 			Blaze3D.youJustLostTheGame();
 		}
+	}
+
+	public static double easeInOutQuad(double t) {
+		return t < 0.5 ?
+				2.0 * t * t :
+				1.0 - 2.0 * (1.0 - t) * (1.0 - t);
+	}
+
+	public static String vec2toString(Vec2 vec2) {
+		return "(%s %s)".formatted(vec2.x, vec2.y);
 	}
 }

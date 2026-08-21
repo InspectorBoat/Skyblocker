@@ -6,7 +6,9 @@ import de.hysky.skyblocker.config.SkyblockerConfigManager;
 import de.hysky.skyblocker.skyblock.item.HotbarSlotLock;
 import de.hysky.skyblocker.skyblock.item.ItemProtection;
 import de.hysky.skyblocker.skyblock.item.SkyblockInventoryScreen;
+import de.hysky.skyblocker.skyblock.teleport.MoveUtils;
 import de.hysky.skyblocker.utils.Utils;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -31,6 +33,12 @@ public abstract class MinecraftMixin {
 
 	@Inject(method = "handleKeybinds", at = @At("HEAD"))
 	public void skyblocker$handleInputEvents(CallbackInfo ci) {
+		Minecraft client = Minecraft.getInstance();
+		if (MoveUtils.sequence.getCurrentAction() instanceof MoveUtils.Action.Click && client.gui.screen() == null && client.gui.overlay() == null) {
+			KeyMapping.click(client.options.keyUse.getDefaultKey());
+			MoveUtils.sequence.playerClicked();
+		}
+
 		// screen == null prevents double-toggle when a container screen is open
 		if (player != null && gui.screen() == null && Utils.isOnSkyblock()) {
 			HotbarSlotLock.handleInputEvents(player);
