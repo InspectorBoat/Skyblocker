@@ -18,6 +18,7 @@
 		"ClientLevelMixin",
 		"ClientPacketListenerMixin",
 		"ClientTooltipComponentMixin",
+		"ConnectionMixin",
 		"ContainerScreenMixin",
 		"DataComponentHolderMixin",
 		"DyedItemColorMixin",
@@ -98,8 +99,7 @@
 		"adaptivetooltips.ScrollTrackerMixin",
 		"discordipc.ConnectionMixin",
 		"jgit.SystemReaderMixin",
-		"jgit.UrlConfigMixin",
-		"ConnectionMixin"
+		"jgit.UrlConfigMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

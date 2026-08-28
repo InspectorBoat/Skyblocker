@@ -79,6 +79,7 @@ public class TeleportLogger {
 			return;
 		}
 
+//		say("%s %s".formatted(BlockPos.containing(after.add(0, 1.5, 0)), teleport.finalPos));
 		if (BlockPos.containing(after.add(0, 1.5, 0)).equals(teleport.finalPos)) {
 			MoveUtils.teleportAtEnd += 1;
 		}
@@ -117,7 +118,7 @@ public class TeleportLogger {
 		final Vec3 direction = CLIENT.player.calculateViewVector(rot.x, rot.y);
 
 		final BlockPos unobstructedFinalPos = BlockPos.containing(
-				startPos.add(direction.scale(teleport.distance()))
+				startEyePos.add(direction.scale(teleport.distance()))
 		);
 
 		// If initiating a new teleport, we use player rotation and position; otherwise use the end position and rotation of last teleport
@@ -160,11 +161,14 @@ public class TeleportLogger {
 	}
 
 	public static void logAote(Vec3[] steps, @Nullable Vec3 dest, Vec2 rot) {
-		String toSay = "rot: %s dest: %s steps: %s".formatted(
-				vec2toString(rot),
-				dest,
-				Arrays.stream(steps).map(Vec3::toString).collect(Collectors.joining(" ")));
-		appendToFile(toSay, "/home/inspectorboat/scratch/aotelogs");
+		BlockPos destBlock;
+		if (dest == null) destBlock = BlockPos.containing(steps[0]).below();
+		else destBlock = BlockPos.containing(dest);
+		String toSay = ".{ .rot = .{ .pitch = %s, .yaw = %s }, .dest = .{ .x = %s, .y = %s, .z = %s }, .steps = &.{ %s } },".formatted(
+				rot.y, rot.x,
+				destBlock.getX(), destBlock.getY(), destBlock.getZ(),
+				Arrays.stream(steps).map(step -> ".{ .x = %s, .y = %s, .z = %s }".formatted(step.x, step.y, step.z)).collect(Collectors.joining(", ")));
+		appendToFile(toSay, "/home/inspectorboat/scratch/aotelogs2");
 	}
 
 	public static void appendToFile(String text, String filePath) {

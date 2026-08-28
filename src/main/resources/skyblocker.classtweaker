@@ -89,3 +89,5 @@ accessible field net/minecraft/client/player/LocalPlayer zLast D
 
 accessible field net/minecraft/world/level/block/TrapDoorBlock type Lnet/minecraft/world/level/block/state/properties/BlockSetType;
 accessible field net/minecraft/world/level/block/LayeredCauldronBlock precipitationType Lnet/minecraft/world/level/biome/Biome$Precipitation;
+
+accessible field java/util/EnumMap vals [Ljava/lang/Object;

@@ -46,25 +46,26 @@ public class MoveUtils {
 	}
 
 	public static void startNewSequence() {
-		say("Starting new sequence");
 		MoveUtils.sequence = new MoveUtils.Sequence(
-				new Wait(20),
+				new Wait(25),
 				new WarpHome(),
 				new WaitHome(),
 				new Look(180f, targetPitch),
-				new Wait(20),
+				new Wait(15),
 				new Look(180f, targetPitch),
 				new Look(180f, targetPitch),
 				new Click(),
 				new Schedule(() -> {
+					targetPitch = (float) Math.ceil(targetPitch);
 					targetPitch -= 1;
-					if (targetPitch <= -45 || teleportAtEnd > 5) {
+					targetPitch -= (float) Math.random();
+					if (targetPitch <= 0 || teleportAtEnd > 5) {
 						teleportAtEnd = 0;
-						targetPitch = 0;
-						say("COMPLETED");
+						targetPitch = 60;
+						say("Completed full cycle");
 
 						MoveUtils.sequence = new MoveUtils.Sequence(
-								new Wait(20),
+								new Wait(50),
 								new WarpHome(),
 								new WaitHome(),
 								new Wait(20),
@@ -78,12 +79,10 @@ public class MoveUtils {
 								new Wait(1),
 								new Action.Move(0, 1, false, true, false),
 								new Wait(15),
-								new Schedule(() -> {
-									MessageScheduler.INSTANCE.queueMessage("/setspawn", true, 0);
-								}),
+								new Schedule(() -> MessageScheduler.INSTANCE.queueMessage("/setspawn", true, 0)),
 								new Wait(15),
 								new Schedule(() -> {
-									say("RESTARTING");
+									say("Starting new cycle");
 									startNewSequence();
 								})
 						);

@@ -63,6 +63,8 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
 
 public class TeleportUtils {
@@ -256,7 +258,6 @@ public class TeleportUtils {
 				Block targetBlock = level.getBlockState(target).getBlock();
 				//
 				if (targetBlock instanceof FenceGateBlock || targetBlock instanceof FenceBlock || targetBlock instanceof WallBlock) target = target.above();
-
 				// Require 2 blocks of clearance to fit player
 				if (blocksClearance(level, target.above(1)) || blocksClearance(level, target.above(2))) return null;
 				return target;
